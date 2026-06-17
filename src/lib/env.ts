@@ -45,7 +45,6 @@ const REQUIRED_KEYS = [
   "SUPABASE_SERVICE_ROLE_KEY",
   "AI_GATEWAY_API_KEY",
   "CRON_SECRET",
-  "TOKEN_ENCRYPTION_KEY",
 ] as const;
 
 /**
@@ -74,11 +73,33 @@ export const supabaseAnonKey = memo(() => requireString(process.env, "NEXT_PUBLI
 export const supabaseServiceRoleKey = memo(() => requireString(process.env, "SUPABASE_SERVICE_ROLE_KEY"));
 export const aiGatewayKey = memo(() => requireString(process.env, "AI_GATEWAY_API_KEY"));
 export const cronSecret = memo(() => requireString(process.env, "CRON_SECRET"));
-export const tokenEncryptionKey = memo(() => requireString(process.env, "TOKEN_ENCRYPTION_KEY"));
 
-/** Optional — undefined when unset (feature dormant). */
-export const tavilyApiKey = (): string | undefined => optionalString(process.env, "TAVILY_API_KEY");
+// --- Market data + email: all OPTIONAL. A missing key means that source/feature is DORMANT (the
+// adapter degrades to []/null and the run continues) — never a boot failure. (Anthropic, SpaceX and
+// other private companies have no quote API regardless of keys; callers guard on is_public.) ---
 
-/** Optional contact email for OpenAlex's "polite pool" (friendlier rate limits). No key; lookups work
- *  without it. */
-export const openalexMailto = (): string | undefined => optionalString(process.env, "OPENALEX_MAILTO");
+/** Finnhub — primary quotes + company news (free tier 60 req/min). */
+export const finnhubKey = (): string | undefined => optionalString(process.env, "FINNHUB_API_KEY");
+
+/** Financial Modeling Prep — profiles, earnings calendar, ratings/price-target deltas (free 250/day). */
+export const fmpKey = (): string | undefined => optionalString(process.env, "FMP_API_KEY");
+
+/** Alpha Vantage — news sentiment. Free tier is 25 calls/DAY (severe) — theme-level/optional only. */
+export const alphaVantageKey = (): string | undefined => optionalString(process.env, "ALPHAVANTAGE_API_KEY");
+
+/** SEC EDGAR is keyless but REQUIRES a User-Agent of the form "Name email@example.com" (SEC 403s
+ *  without it). Returns undefined when unset — the EDGAR adapter then stays dormant rather than 403. */
+export const secEdgarUa = (): string | undefined => optionalString(process.env, "SEC_EDGAR_UA");
+
+/** Resend — sends the morning brief. Free tier only delivers to your own account email unless a
+ *  domain is verified. Dormant when unset. */
+export const resendKey = (): string | undefined => optionalString(process.env, "RESEND_API_KEY");
+
+/** Verified "From" address for the brief (falls back to Resend's onboarding sender). */
+export const resendFrom = (): string | undefined => optionalString(process.env, "RESEND_FROM");
+
+/** Recipient of the morning brief (dad's email). */
+export const digestTo = (): string | undefined => optionalString(process.env, "DIGEST_TO");
+
+/** IANA timezone the brief's ET-date idempotency gate uses (default America/New_York). */
+export const digestTz = (): string => optionalString(process.env, "DIGEST_TZ") ?? "America/New_York";
