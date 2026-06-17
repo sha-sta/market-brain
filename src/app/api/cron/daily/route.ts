@@ -1,0 +1,69 @@
+import { NextResponse, type NextRequest } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { liveMarketDeps } from "@/server/market";
+import { runDailyForGraph } from "@/server/market/daily";
+import { makeFinanceEnricher } from "@/server/market/enrich";
+import { extractEntities } from "@/server/normalize/extract";
+import { embedTexts } from "@/server/normalize/embed";
+import { makeNeighborLookup } from "@/server/normalize/neighbors";
+import type { WorkerDeps } from "@/server/normalize/worker";
+import { sendDigestForGraph } from "@/server/digest/send-digest";
+import { sendBrief } from "@/server/digest/resend";
+import { summarizeBrief } from "@/server/digest/summarize";
+import { digestTo, digestTz } from "@/lib/env";
+
+// The single daily cron (Vercel Hobby allows 1/day): for EVERY graph, fetch prices + news into the
+// graph, then compose + send the morning brief — fetch and brief together, never split. CRON_SECRET
+// fail-closed. Node runtime (AI Gateway + service-role). maxDuration is the platform's 300s ceiling.
+export const maxDuration = 300;
+
+export async function GET(request: NextRequest) {
+  // Fail closed: if CRON_SECRET is unset the endpoint is unreachable (never open to the internet).
+  const secret = process.env.CRON_SECRET;
+  if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  const supabase = createAdminClient();
+  const nowMs = Date.now();
+  const market = liveMarketDeps();
+
+  // Manufactured news raw_uploads need a contributor (a real profile). Attribute to an active admin
+  // (the graph owner). If none exists yet, the fetch step is skipped; the brief still runs over
+  // whatever is already in the graph.
+  const { data: admin } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("status", "active")
+    .order("is_admin", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const contributorId = admin?.id;
+
+  const worker: WorkerDeps = {
+    extract: extractEntities,
+    embed: embedTexts,
+    neighbors: makeNeighborLookup(supabase),
+    enrichEntities: makeFinanceEnricher(supabase, market),
+  };
+  // The brief's LLM intro only runs when the AI Gateway is configured; otherwise it's template-only.
+  const summarize = process.env.AI_GATEWAY_API_KEY ? summarizeBrief : undefined;
+
+  const { data: graphs } = await supabase.from("graphs").select("id");
+  const results: Array<{ graph: string; daily: unknown; digest: unknown }> = [];
+  for (const g of graphs ?? []) {
+    const daily = contributorId
+      ? await runDailyForGraph(supabase, g.id, { market, worker, contributorId, nowMs })
+      : { skipped: "no active profile to attribute news to" };
+    const digest = await sendDigestForGraph(supabase, g.id, {
+      sendBrief,
+      summarize,
+      to: digestTo(),
+      nowMs,
+      tz: digestTz(),
+    });
+    results.push({ graph: g.id, daily, digest });
+  }
+
+  return NextResponse.json({ ok: true, results });
+}
