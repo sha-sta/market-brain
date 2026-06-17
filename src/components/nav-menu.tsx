@@ -7,7 +7,7 @@ import { signOut } from "@/app/(app)/actions";
 // The navbar's links. At >= lg they're a horizontal row; below lg they collapse behind a hamburger
 // that opens a dropdown. Kept as a client component (the hamburger needs open/close state); NavBar
 // stays a server component and passes only `isAdmin`.
-export function NavMenu({ isAdmin: _isAdmin }: { isAdmin: boolean }) {
+export function NavMenu({ isAdmin }: { isAdmin: boolean }) {
   const [open, setOpen] = useState(false);
   const link = "text-muted transition-colors hover:text-foreground";
   const close = () => setOpen(false);
@@ -29,6 +29,11 @@ export function NavMenu({ isAdmin: _isAdmin }: { isAdmin: boolean }) {
       <Link href="/ask" className={link} onClick={close}>
         Ask
       </Link>
+      {isAdmin && (
+        <Link href="/admin" className={link} onClick={close}>
+          Admin
+        </Link>
+      )}
       <form action={signOut}>
         <button type="submit" className={link}>
           Sign out
