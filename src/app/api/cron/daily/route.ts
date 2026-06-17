@@ -8,9 +8,10 @@ import { embedTexts } from "@/server/normalize/embed";
 import { makeNeighborLookup } from "@/server/normalize/neighbors";
 import type { WorkerDeps } from "@/server/normalize/worker";
 import { sendDigestForGraph } from "@/server/digest/send-digest";
-import { sendBrief } from "@/server/digest/resend";
+import { sendBrief as sendViaResend } from "@/server/digest/resend";
+import { sendViaGmail } from "@/server/digest/gmail";
 import { summarizeBrief } from "@/server/digest/summarize";
-import { digestTo, digestTz } from "@/lib/env";
+import { digestTo, digestTz, gmailUser } from "@/lib/env";
 import { reportError } from "@/lib/observability";
 
 // The single daily cron (Vercel Hobby allows 1/day): for EVERY graph, fetch prices + news into the
@@ -49,6 +50,10 @@ export async function GET(request: NextRequest) {
   };
   // The brief's LLM intro only runs when the AI Gateway is configured; otherwise it's template-only.
   const summarize = process.env.AI_GATEWAY_API_KEY ? summarizeBrief : undefined;
+  // Email sender: prefer Gmail SMTP (no domain needed, reaches any inbox), else Resend. Recipient
+  // defaults to the Gmail account when DIGEST_TO isn't set, so a brief always has somewhere to go.
+  const sendBrief = process.env.GMAIL_APP_PASSWORD ? sendViaGmail : sendViaResend;
+  const to = digestTo() ?? gmailUser();
 
   const { data: graphs } = await supabase.from("graphs").select("id");
   const results: Array<{ graph: string; daily: unknown; digest: unknown }> = [];
@@ -67,7 +72,7 @@ export async function GET(request: NextRequest) {
     }
     let digest: unknown;
     try {
-      digest = await sendDigestForGraph(supabase, g.id, { sendBrief, summarize, to: digestTo(), nowMs, tz: digestTz() });
+      digest = await sendDigestForGraph(supabase, g.id, { sendBrief, summarize, to, nowMs, tz: digestTz() });
     } catch (e) {
       reportError(e, { scope: "cron.digest", graph: g.id });
       digest = { error: e instanceof Error ? e.message : String(e) };

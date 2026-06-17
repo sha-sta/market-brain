@@ -60,7 +60,8 @@ Useful scripts: `npm test` (unit), `npm run test:integration` (needs `npm run db
 | `SUPABASE_SERVICE_ROLE_KEY` | yes | worker + cron (server only) |
 | `AI_GATEWAY_API_KEY` | yes* | Claude extraction/brief + OpenAI embeddings (**needs PAID credits** — the free tier blocks the latest Claude) |
 | `CRON_SECRET` | yes | Bearer token the daily cron requires (fail-closed) |
-| `RESEND_API_KEY` / `RESEND_FROM` / `DIGEST_TO` | for the brief | sends the morning email (free tier only delivers to your own account email until a domain is verified) |
+| `GMAIL_USER` / `GMAIL_APP_PASSWORD` / `DIGEST_TO` | for the brief | **preferred** — sends the morning email from a Gmail account via an App Password (no domain needed, reaches any inbox). `DIGEST_TO` defaults to `GMAIL_USER`. |
+| `RESEND_API_KEY` / `RESEND_FROM` | alt sender | only used if `GMAIL_APP_PASSWORD` is unset; needs a verified domain to reach arbitrary recipients |
 | `FINNHUB_API_KEY` | recommended | primary quotes + news |
 | `FMP_API_KEY` | optional | profiles / earnings / ratings |
 | `ALPHAVANTAGE_API_KEY` | optional | news fallback (25/day) |
@@ -81,8 +82,10 @@ dormant (the brief falls back to template-only).
    so re-run the seed (or a one-line `UPDATE`) after first login.
 3. **Vercel** — import the repo, set every env var above. `vercel.json` registers the daily cron
    (`0 11 * * 1-5` UTC ≈ 7am ET pre-market, weekdays). Default Node runtime / Fluid Compute.
-4. **Resend** — verify a sending domain (or confirm a real send to dad's address) before trusting the
-   brief; the free tier otherwise only delivers to your own account email.
+4. **Email** — preferred (no domain): enable 2-Step Verification on a Gmail account, generate an App
+   Password (Google Account → Security → App passwords), and set `GMAIL_USER` + `GMAIL_APP_PASSWORD`
+   (+ `DIGEST_TO` = dad's email). Delivers to any inbox. (Alternative: set `RESEND_API_KEY` +
+   `RESEND_FROM` instead — but Resend needs a verified sending domain to reach arbitrary recipients.)
 5. **Verify before relying on the schedule** — hit the cron once manually with the secret and confirm a
    real brief lands:
    ```bash

@@ -91,8 +91,19 @@ export const alphaVantageKey = (): string | undefined => optionalString(process.
  *  without it). Returns undefined when unset — the EDGAR adapter then stays dormant rather than 403. */
 export const secEdgarUa = (): string | undefined => optionalString(process.env, "SEC_EDGAR_UA");
 
-/** Resend — sends the morning brief. Free tier only delivers to your own account email unless a
- *  domain is verified. Dormant when unset. */
+// --- Email senders. PREFERRED for a personal gift: Gmail SMTP (no domain/DNS, delivers to any
+// inbox). Resend is the alternative (needs a verified domain to reach arbitrary recipients). The cron
+// uses Gmail when GMAIL_APP_PASSWORD is set, else Resend, else composes + archives only. ---
+
+/** The Gmail address the brief is sent FROM (also the recipient if you don't set DIGEST_TO). */
+export const gmailUser = (): string | undefined => optionalString(process.env, "GMAIL_USER");
+
+/** A Google "App Password" (16 chars) for that account — NOT the normal password. Requires 2-Step
+ *  Verification enabled, then Google Account > Security > App passwords. Dormant when unset. */
+export const gmailAppPassword = (): string | undefined => optionalString(process.env, "GMAIL_APP_PASSWORD");
+
+/** Resend — alternative sender. Free tier only delivers to your own account email unless a domain is
+ *  verified. Dormant when unset. */
 export const resendKey = (): string | undefined => optionalString(process.env, "RESEND_API_KEY");
 
 /** Verified "From" address for the brief (falls back to Resend's onboarding sender). */
