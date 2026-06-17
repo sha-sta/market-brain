@@ -39,6 +39,19 @@ describe("composeBrief", () => {
     expect(fail.html).toContain("quiet morning"); // graceful template fallback
   });
 
+  it("never renders a non-http(s) URL as a clickable href (XSS guard on external feed urls)", async () => {
+    const { html } = await composeBrief({
+      ...base,
+      news: [
+        { headline: "evil", url: "javascript:alert(document.cookie)", source: null, sentiment: null, materiality: null, mentions: [] },
+        { headline: "ok story", url: "https://reuters.com/x", source: null, sentiment: null, materiality: null, mentions: [] },
+      ],
+    });
+    expect(html).not.toContain("javascript:");
+    expect(html).toContain("evil"); // still shown, as plain text
+    expect(html).toContain('href="https://reuters.com/x"'); // legit link preserved
+  });
+
   it("always carries the no-advice footer and never advises", async () => {
     const { html } = await composeBrief({
       ...base,

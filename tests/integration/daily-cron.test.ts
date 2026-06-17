@@ -117,6 +117,15 @@ describe("daily cron — fetch → graph → brief", () => {
     expect(summary.newsSkipped).toBeGreaterThanOrEqual(1);
   });
 
+  it("archives the brief when there is no recipient (status 'archived' persists)", async () => {
+    const admin = adminClient();
+    const { data: g } = await admin.from("graphs").insert({ name: "no-recipient" }).select("id").single();
+    const r = await sendDigestForGraph(admin, g!.id, { sendBrief: async () => ({ ok: true }), nowMs: Date.now() });
+    expect(r.status).toBe("archived"); // no `to` → composed + archived (not emailed)
+    const { data: log } = await admin.from("digest_log").select("status").eq("graph_id", g!.id).maybeSingle();
+    expect(log?.status).toBe("archived"); // the CHECK constraint accepts 'archived' (regression guard)
+  });
+
   it("the brief sends once per ET day (idempotent)", async () => {
     const admin = adminClient();
     const nowMs = Date.now();

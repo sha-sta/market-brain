@@ -58,6 +58,20 @@ function esc(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }
 
+/** Only allow http(s) hrefs. News/filing URLs come from external feeds (Finnhub/EDGAR), so a
+ *  `javascript:`/`data:` URL must NOT become a clickable link in the brief (rendered via
+ *  dangerouslySetInnerHTML on /brief) — `esc` doesn't touch those schemes. Returns null to render
+ *  plain text instead of an anchor. */
+function safeHref(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    return u.protocol === "http:" || u.protocol === "https:" ? url : null;
+  } catch {
+    return null;
+  }
+}
+
 function pct(n: number | null): string {
   if (n === null || !Number.isFinite(n)) return "—";
   const sign = n > 0 ? "+" : "";
@@ -86,7 +100,8 @@ function newsHtml(news: NewsItem[]): string {
   if (news.length === 0) return "";
   const rows = news
     .map((n) => {
-      const link = n.url ? `<a href="${esc(n.url)}" style="color:#1c1b19">${esc(n.headline)}</a>` : esc(n.headline);
+      const href = safeHref(n.url);
+      const link = href ? `<a href="${esc(href)}" style="color:#1c1b19">${esc(n.headline)}</a>` : esc(n.headline);
       const meta = [n.source, n.sentiment, n.materiality ? `${n.materiality} materiality` : null]
         .filter(Boolean)
         .map((x) => esc(String(x)))
@@ -111,7 +126,8 @@ function filingsHtml(filings: FilingItem[]): string {
   const rows = filings
     .map((f) => {
       const label = `${esc(f.formType)}${f.company ? ` — ${esc(f.company)}` : ""}`;
-      return `<li>${f.url ? `<a href="${esc(f.url)}" style="color:#1c1b19">${label}</a>` : label}</li>`;
+      const href = safeHref(f.url);
+      return `<li>${href ? `<a href="${esc(href)}" style="color:#1c1b19">${label}</a>` : label}</li>`;
     })
     .join("");
   return `<h3 style="margin:18px 0 6px">Filings</h3><ul style="margin:0;padding-left:18px">${rows}</ul>`;

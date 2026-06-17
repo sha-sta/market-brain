@@ -41,7 +41,8 @@ export interface PositionValue {
 }
 
 function num(v: unknown): number | null {
-  const n = typeof v === "string" ? Number(v) : typeof v === "number" ? v : NaN;
+  const s = typeof v === "string" ? v.trim() : v;
+  const n = typeof s === "string" ? (s === "" ? NaN : Number(s)) : typeof s === "number" ? s : NaN;
   return Number.isFinite(n) ? n : null;
 }
 

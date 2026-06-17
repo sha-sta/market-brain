@@ -27,7 +27,6 @@ update public.edges set
     when type = 'sector'                then 'in_sector'
     when type in ('themes', 'theme')    then 'in_theme'
     when type in ('founders', 'founder') then 'founded_by'
-    when type = 'insider'               then 'insider_of'
     when type = 'tickers'               then 'mentions'
     when type = 'mentions'              then 'mentions'
     when type = 'relates_to'            then 'relates_to'

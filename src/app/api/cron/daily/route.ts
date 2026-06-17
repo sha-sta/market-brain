@@ -11,6 +11,7 @@ import { sendDigestForGraph } from "@/server/digest/send-digest";
 import { sendBrief } from "@/server/digest/resend";
 import { summarizeBrief } from "@/server/digest/summarize";
 import { digestTo, digestTz } from "@/lib/env";
+import { reportError } from "@/lib/observability";
 
 // The single daily cron (Vercel Hobby allows 1/day): for EVERY graph, fetch prices + news into the
 // graph, then compose + send the morning brief — fetch and brief together, never split. CRON_SECRET
@@ -51,17 +52,26 @@ export async function GET(request: NextRequest) {
 
   const { data: graphs } = await supabase.from("graphs").select("id");
   const results: Array<{ graph: string; daily: unknown; digest: unknown }> = [];
+  // Per-graph isolation: one graph's failure (or one of its two phases) must never abort the rest or
+  // skip the brief. The daily fetch and the brief are wrapped independently so a fetch failure still
+  // lets the brief run over whatever is already in the graph.
   for (const g of graphs ?? []) {
-    const daily = contributorId
-      ? await runDailyForGraph(supabase, g.id, { market, worker, contributorId, nowMs })
-      : { skipped: "no active profile to attribute news to" };
-    const digest = await sendDigestForGraph(supabase, g.id, {
-      sendBrief,
-      summarize,
-      to: digestTo(),
-      nowMs,
-      tz: digestTz(),
-    });
+    let daily: unknown = { skipped: "no active profile to attribute news to" };
+    if (contributorId) {
+      try {
+        daily = await runDailyForGraph(supabase, g.id, { market, worker, contributorId, nowMs });
+      } catch (e) {
+        reportError(e, { scope: "cron.daily", graph: g.id });
+        daily = { error: e instanceof Error ? e.message : String(e) };
+      }
+    }
+    let digest: unknown;
+    try {
+      digest = await sendDigestForGraph(supabase, g.id, { sendBrief, summarize, to: digestTo(), nowMs, tz: digestTz() });
+    } catch (e) {
+      reportError(e, { scope: "cron.digest", graph: g.id });
+      digest = { error: e instanceof Error ? e.message : String(e) };
+    }
     results.push({ graph: g.id, daily, digest });
   }
 

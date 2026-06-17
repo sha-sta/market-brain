@@ -15,18 +15,19 @@ const MAX_MOVERS = 8;
 const MAX_CONNECTIONS = 5;
 
 function num(v: unknown): number | null {
-  const n = typeof v === "string" ? Number(v) : typeof v === "number" ? v : NaN;
+  const s = typeof v === "string" ? v.trim() : v;
+  const n = typeof s === "string" ? (s === "" ? NaN : Number(s)) : typeof s === "number" ? s : NaN;
   return Number.isFinite(n) ? n : null;
 }
 
 export async function gatherBrief(
   supabase: Client,
   graphId: string,
-  opts: { date: string; sinceIso: string },
+  opts: { date: string; sinceIso: string; nowMs: number },
 ): Promise<BriefData> {
   const [movers, news, filings, alerts, connections] = await Promise.all([
     gatherMovers(supabase, graphId),
-    gatherNews(supabase, graphId, opts.sinceIso),
+    gatherNews(supabase, graphId, opts.sinceIso, opts.nowMs),
     gatherFilings(supabase, graphId, opts.sinceIso),
     gatherAlerts(supabase, graphId, opts.sinceIso),
     gatherConnections(supabase, graphId),
@@ -65,7 +66,7 @@ async function gatherMovers(supabase: Client, graphId: string): Promise<Mover[]>
 }
 
 /** New news nodes since the last brief, ranked, with the holdings each names (mentions edges). */
-async function gatherNews(supabase: Client, graphId: string, sinceIso: string): Promise<NewsItem[]> {
+async function gatherNews(supabase: Client, graphId: string, sinceIso: string, nowMs: number): Promise<NewsItem[]> {
   const { data: rows } = await supabase
     .from("nodes")
     .select("id, title, data, created_at")
@@ -81,7 +82,7 @@ async function gatherNews(supabase: Client, graphId: string, sinceIso: string): 
       const d = (r.data ?? {}) as Record<string, unknown>;
       return { id: r.id, title: r.title, data: d, publishedAt: typeof d.published_at === "string" ? d.published_at : r.created_at, materiality: typeof d.materiality === "string" ? d.materiality : null };
     }),
-    Date.parse(sinceIso) || 0,
+    nowMs, // recency is measured from NOW, not the window start (else every fresh item ties at max)
   ).slice(0, MAX_NEWS);
 
   // One query for all mentions edges of the chosen news nodes -> holding titles.

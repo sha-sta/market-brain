@@ -8,7 +8,7 @@ create table public.digest_log (
   digest_date date not null,
   html        text,
   resend_id   text,
-  status      text not null default 'pending' check (status in ('pending', 'sent', 'failed', 'skipped')),
+  status      text not null default 'pending' check (status in ('pending', 'sent', 'failed', 'skipped', 'archived')),
   created_at  timestamptz not null default now(),
   unique (graph_id, digest_date)
 );

@@ -49,17 +49,19 @@ export async function sendDigestForGraph(supabase: Client, graphId: string, deps
     .maybeSingle();
   if (existing?.status === "sent") return { graphId, date, status: "skipped", reason: "already sent today" };
 
-  // Window since the previous brief (any date), else the last 24h.
+  // Window since the previous brief — EXCLUDING today's row, so a same-day retry (after a failed or
+  // archived send) doesn't shrink the window to minutes and produce a truncated brief. Else last 24h.
   const { data: prev } = await supabase
     .from("digest_log")
     .select("created_at")
     .eq("graph_id", graphId)
+    .neq("digest_date", date)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
   const sinceIso = prev?.created_at ?? new Date(deps.nowMs - 86_400_000).toISOString();
 
-  const data = await gatherBrief(supabase, graphId, { date, sinceIso });
+  const data = await gatherBrief(supabase, graphId, { date, sinceIso, nowMs: deps.nowMs });
   const { subject, html } = await composeBrief(data, { summarize: deps.summarize });
 
   let status: SendDigestResult["status"] = "archived";
@@ -79,13 +81,16 @@ export async function sendDigestForGraph(supabase: Client, graphId: string, deps
   }
 
   // Archive (upsert on the unique (graph_id, digest_date)). Logged regardless of send outcome so the
-  // in-app /brief always has today's brief.
-  await supabase
+  // in-app /brief always has today's brief. Surface a write error rather than swallowing it.
+  const { error: logErr } = await supabase
     .from("digest_log")
     .upsert(
       { graph_id: graphId, digest_date: date, html, resend_id: resendId ?? null, status },
       { onConflict: "graph_id,digest_date" },
     );
+  if (logErr) {
+    return { graphId, date, status: "failed", resendId, reason: `digest_log write failed: ${logErr.message}` };
+  }
 
   return { graphId, date, status, resendId, reason };
 }

@@ -6,6 +6,7 @@ import type { WorkerDeps } from "@/server/normalize/worker";
 import { upsertEdge } from "@/server/normalize/upsert";
 import { CONFIDENCE_WEAK } from "@/server/normalize/relations";
 import { canonicalizeUrl, normTicker } from "@/server/normalize/dedupe";
+import { reportError } from "@/lib/observability";
 import { pLimit } from "./p-limit";
 import type { MarketDeps } from "./types";
 
@@ -74,18 +75,22 @@ async function snapshotPrices(supabase: Client, graphId: string, companies: Comp
       .filter((c) => c.isPublic && c.ticker)
       .map((c) =>
         limit.run(async () => {
-          const q = await deps.market.quote(c.ticker);
-          if (!q || q.price === null) return;
-          const { error } = await supabase.from("price_snapshots").insert({
-            graph_id: graphId,
-            node_id: c.id,
-            ticker: c.ticker,
-            price: q.price,
-            change_pct: q.changePct,
-            market_cap: q.marketCap,
-            captured_at: new Date(deps.nowMs).toISOString(),
-          });
-          if (!error) snapshots += 1;
+          try {
+            const q = await deps.market.quote(c.ticker);
+            if (!q || q.price === null) return;
+            const { error } = await supabase.from("price_snapshots").insert({
+              graph_id: graphId,
+              node_id: c.id,
+              ticker: c.ticker,
+              price: q.price,
+              change_pct: q.changePct,
+              market_cap: q.marketCap,
+              captured_at: new Date(deps.nowMs).toISOString(),
+            });
+            if (!error) snapshots += 1;
+          } catch (e) {
+            reportError(e, { scope: "daily.quote", ticker: c.ticker }); // one ticker can't fail the batch
+          }
         }),
       ),
   );
@@ -111,8 +116,9 @@ async function enqueueNews(
       .filter((c) => c.isPublic && c.ticker)
       .map((c) =>
         limit.run(async () => {
-          const articles = await deps.market.news(c.ticker, from, to);
-          for (const a of articles) {
+          try {
+            const articles = await deps.market.news(c.ticker, from, to);
+            for (const a of articles) {
             const url = canonicalizeUrl(a.url);
             if (!url) continue;
             if (seenThisRun.has(url)) {
@@ -151,6 +157,9 @@ async function enqueueNews(
               status: "pending",
             });
             if (!error) enqueued += 1;
+            }
+          } catch (e) {
+            reportError(e, { scope: "daily.news", ticker: c.ticker }); // one ticker can't fail the batch
           }
         }),
       ),

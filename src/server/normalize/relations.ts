@@ -64,7 +64,10 @@ const FIELD_RELATION: Record<string, string> = {
   theme: "in_theme",
   founders: "founded_by",
   company: "relevant_to", // person/filing -> company (navigational, never asserted from a wikilink)
-  insider: "insider_of",
+  // NOTE: filing.insider = [[person]] is intentionally NOT mapped to insider_of. insider_of means
+  // person -> company; a structural filing -> person wikilink would carry the wrong endpoints AND
+  // direction, so it falls through to weak relates_to (navigational). The correct, direction-controlled
+  // insider_of edge comes only from the extractor's grounded `relations` array.
   about: "relevant_to", // thesis -> company/theme
   related_themes: "relates_to",
   covers: "covers",
