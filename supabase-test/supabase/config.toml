@@ -1,0 +1,62 @@
+# Dedicated Supabase instance for the integration test suite (D2). Isolated from the dev stack so
+# `npm run test:integration` (which wipes the graph via cleanupAll) never touches dumped dev data.
+# Ports are offset to 5433x to coexist with the dev stack (5432x). Migrations are a symlink to the
+# canonical web/supabase/migrations — single source of truth. Start with `npm run db:test:start`.
+project_id = "marketbrain_test"
+
+[api]
+enabled = true
+port = 55331
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 55332
+shadow_port = 55330
+major_version = 17
+
+[db.migrations]
+enabled = true
+
+# No seeding — the test DB must start empty; each suite seeds its own fixtures.
+[db.seed]
+enabled = false
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000", "http://localhost:3000/**", "http://127.0.0.1:3000/**"]
+jwt_expiry = 3600
+enable_signup = true
+minimum_password_length = 6
+
+[auth.email]
+enable_signup = true
+enable_confirmations = false
+
+# Tests authenticate via email/password (admin API), not Google — keep the provider off so the
+# test stack starts WITHOUT needing GOOGLE_OAUTH_* credentials.
+[auth.external.google]
+enabled = false
+
+# Services the integration suite doesn't need — disabled to keep the test stack lean + fast and to
+# avoid extra port bindings.
+[studio]
+enabled = false
+
+[inbucket]
+enabled = false
+
+[realtime]
+enabled = false
+
+[analytics]
+enabled = false
+
+[edge_runtime]
+enabled = false

@@ -1,0 +1,44 @@
+@import "tailwindcss";
+
+/* Editorial, single fixed warm-light theme (no dark mode): off-black on warm off-white, hairline
+   borders. Obsidian-meets-Claude. */
+:root {
+  --background: #faf9f6;
+  --foreground: #1c1b19;
+  --muted: #6b675f;
+  --border: #e7e4dc;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --font-sans: var(--font-serif);
+  --font-serif: var(--font-serif);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-serif), Georgia, "Times New Roman", serif;
+}
+
+/* Tailwind v4 defaults <button> to the default cursor; restore the pointer for interactive ones. */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+
+/* Indeterminate progress bar (LLM work with no real percentage: dump normalize, outreach draft/send). */
+@keyframes indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
