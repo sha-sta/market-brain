@@ -2,7 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
 import { rankItems } from "@/server/market/rank";
-import type { BriefData, Connection, FilingItem, Mover, NewsItem } from "./compose";
+import type { BriefData, Connection, FilingItem, Mover, NewsItem, ThesisCheck } from "./compose";
 
 // Gather the graph's deltas since the last brief into the pure BriefData composeBrief consumes. All
 // reads degrade to [] on absence. The connection-surfacing step ("TSMC appears across 3 of your
@@ -13,6 +13,8 @@ type Client = SupabaseClient<Database>;
 const MAX_NEWS = 8;
 const MAX_MOVERS = 8;
 const MAX_CONNECTIONS = 5;
+const MAX_THESIS_CHECKS = 5;
+const STRENGTH_ORDER: Record<string, number> = { unsupported: 0, weak: 1, contested: 2, supported: 3, "well-supported": 4 };
 
 function num(v: unknown): number | null {
   const s = typeof v === "string" ? v.trim() : v;
@@ -25,14 +27,15 @@ export async function gatherBrief(
   graphId: string,
   opts: { date: string; sinceIso: string; nowMs: number },
 ): Promise<BriefData> {
-  const [movers, news, filings, alerts, connections] = await Promise.all([
+  const [movers, news, filings, alerts, connections, thesisChecks] = await Promise.all([
     gatherMovers(supabase, graphId),
     gatherNews(supabase, graphId, opts.sinceIso, opts.nowMs),
     gatherFilings(supabase, graphId, opts.sinceIso),
     gatherAlerts(supabase, graphId, opts.sinceIso),
     gatherConnections(supabase, graphId),
+    gatherThesisChecks(supabase, graphId, opts.sinceIso),
   ]);
-  return { date: opts.date, movers, news, filings, alerts, connections };
+  return { date: opts.date, movers, news, filings, alerts, connections, thesisChecks };
 }
 
 async function titles(supabase: Client, graphId: string, ids: string[]): Promise<Map<string, string>> {
@@ -72,6 +75,7 @@ async function gatherNews(supabase: Client, graphId: string, sinceIso: string, n
     .select("id, title, data, created_at")
     .eq("graph_id", graphId)
     .eq("type", "news")
+    .in("lifecycle", ["active", "stale"]) // exclude archived/superseded from the brief
     .gte("created_at", sinceIso)
     .order("created_at", { ascending: false })
     .limit(60);
@@ -123,6 +127,7 @@ async function gatherFilings(supabase: Client, graphId: string, sinceIso: string
     .select("data, created_at")
     .eq("graph_id", graphId)
     .eq("type", "filing")
+    .in("lifecycle", ["active", "stale"])
     .gte("created_at", sinceIso)
     .order("created_at", { ascending: false })
     .limit(20);
@@ -184,4 +189,35 @@ async function gatherConnections(supabase: Client, graphId: string): Promise<Con
     entity: titleById.get(entity) ?? entity,
     holdings: [...h].map((id) => titleById.get(id) ?? id),
   }));
+}
+
+/** Theses re-judged since the last brief, with the strict-critic verdict. Problems (weak/contested/
+ *  unsupported) are surfaced first — the brief leads with what's NOT holding up. */
+async function gatherThesisChecks(supabase: Client, graphId: string, sinceIso: string): Promise<ThesisCheck[]> {
+  const { data: rows } = await supabase
+    .from("nodes")
+    .select("id, title, data")
+    .eq("graph_id", graphId)
+    .eq("type", "thesis")
+    .in("lifecycle", ["active", "stale"])
+    .gte("last_judged_at", sinceIso)
+    .order("last_judged_at", { ascending: false })
+    .limit(20);
+
+  const checks: ThesisCheck[] = [];
+  for (const r of rows ?? []) {
+    const judge = ((r.data ?? {}) as Record<string, unknown>).judge;
+    if (!judge || typeof judge !== "object") continue;
+    const j = judge as Record<string, unknown>;
+    checks.push({
+      nodeId: r.id,
+      title: r.title,
+      strength: typeof j.strength === "string" ? j.strength : "weak",
+      bearCase: typeof j.bear_case === "string" ? j.bear_case : "",
+      confirming: typeof j.confirming_count === "number" ? j.confirming_count : 0,
+      challenging: typeof j.challenging_count === "number" ? j.challenging_count : 0,
+    });
+  }
+  checks.sort((a, b) => (STRENGTH_ORDER[a.strength] ?? 1) - (STRENGTH_ORDER[b.strength] ?? 1));
+  return checks.slice(0, MAX_THESIS_CHECKS);
 }

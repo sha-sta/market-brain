@@ -31,6 +31,15 @@ export interface Connection {
   holdings: string[]; // holdings it connects to
 }
 
+export interface ThesisCheck {
+  nodeId: string;
+  title: string;
+  strength: string; // unsupported | weak | contested | supported | well-supported
+  bearCase: string;
+  confirming: number;
+  challenging: number;
+}
+
 export interface BriefData {
   date: string; // ET date, YYYY-MM-DD
   movers: Mover[];
@@ -38,6 +47,7 @@ export interface BriefData {
   filings: FilingItem[];
   alerts: string[];
   connections: Connection[];
+  thesisChecks?: ThesisCheck[]; // strict-critic verdicts re-judged this cycle (weak/contested first)
 }
 
 export interface ComposeDeps {
@@ -79,7 +89,13 @@ function pct(n: number | null): string {
 }
 
 function isEmpty(d: BriefData): boolean {
-  return d.movers.length === 0 && d.news.length === 0 && d.filings.length === 0 && d.alerts.length === 0;
+  return (
+    d.movers.length === 0 &&
+    d.news.length === 0 &&
+    d.filings.length === 0 &&
+    d.alerts.length === 0 &&
+    (d.thesisChecks?.length ?? 0) === 0
+  );
 }
 
 function moversHtml(movers: Mover[]): string {
@@ -121,6 +137,28 @@ function connectionsHtml(connections: Connection[]): string {
   return `<h3 style="margin:18px 0 6px">Connections</h3><ul style="margin:0;padding-left:18px">${rows}</ul>`;
 }
 
+const STRENGTH_COLOR: Record<string, string> = {
+  unsupported: "#a32f2f",
+  weak: "#a32f2f",
+  contested: "#b8860b",
+  supported: "#1a7f4b",
+  "well-supported": "#1a7f4b",
+};
+
+function thesisChecksHtml(checks: ThesisCheck[]): string {
+  if (checks.length === 0) return "";
+  const rows = checks
+    .map((c) => {
+      const color = STRENGTH_COLOR[c.strength] ?? "#6b675f";
+      const badge = `<span style="color:${color};font-weight:600">${esc(c.strength)}</span>`;
+      const counts = `<span style="color:#6b675f">(${c.confirming} for / ${c.challenging} against)</span>`;
+      const bear = c.bearCase ? `<br><span style="color:#6b675f;font-size:13px">Bear case: ${esc(c.bearCase)}</span>` : "";
+      return `<li style="margin-bottom:8px"><strong>${esc(c.title)}</strong> — ${badge} ${counts}${bear}</li>`;
+    })
+    .join("");
+  return `<h3 style="margin:18px 0 6px">Thesis check-ins</h3><ul style="margin:0;padding-left:18px">${rows}</ul>`;
+}
+
 function filingsHtml(filings: FilingItem[]): string {
   if (filings.length === 0) return "";
   const rows = filings
@@ -141,7 +179,7 @@ function alertsHtml(alerts: string[]): string {
 
 /** Count the surfaced updates (drives the subject line). */
 function updateCount(d: BriefData): number {
-  return d.movers.length + d.news.length + d.filings.length + d.alerts.length;
+  return d.movers.length + d.news.length + d.filings.length + d.alerts.length + (d.thesisChecks?.length ?? 0);
 }
 
 export async function composeBrief(data: BriefData, deps: ComposeDeps = {}): Promise<ComposedBrief> {
@@ -155,7 +193,9 @@ export async function composeBrief(data: BriefData, deps: ComposeDeps = {}): Pro
   if (deps.summarize) {
     try {
       const s = (await deps.summarize(data)).trim();
-      if (s) intro = `<p style="margin:0 0 10px">${s}</p>`;
+      // esc() the LLM intro: it's prompt-instructed to be plain text, and the brief is rendered via
+      // dangerouslySetInnerHTML — so any tag/entity (hallucinated or injected via graph content) is neutralized.
+      if (s) intro = `<p style="margin:0 0 10px">${esc(s)}</p>`;
     } catch {
       // template-only fallback — the gathered data is still useful on its own.
     }
@@ -168,6 +208,7 @@ export async function composeBrief(data: BriefData, deps: ComposeDeps = {}): Pro
 
   const sections = [
     moversHtml(data.movers),
+    thesisChecksHtml(data.thesisChecks ?? []),
     newsHtml(data.news),
     connectionsHtml(data.connections),
     filingsHtml(data.filings),

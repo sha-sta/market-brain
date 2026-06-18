@@ -5,6 +5,7 @@ import { drainPending } from "@/server/normalize/drain";
 import type { WorkerDeps } from "@/server/normalize/worker";
 import { upsertEdge, writeNodeData } from "@/server/normalize/upsert";
 import { newsArchiveCutoffMs } from "@/server/normalize/lifecycle";
+import { judgeTheses, type Judge } from "@/server/critic/thesis-judge";
 import { CONFIDENCE_WEAK } from "@/server/normalize/relations";
 import { canonicalizeUrl, normTicker } from "@/server/normalize/dedupe";
 import { reportError } from "@/lib/observability";
@@ -25,6 +26,7 @@ export interface DailyDeps {
   worker: WorkerDeps; // extract/embed/neighbors/enrichEntities — passed to drainPending
   contributorId: string; // profile id manufactured news raw_uploads are attributed to
   nowMs: number;
+  judge?: Judge; // strict thesis-judge (Sonnet); omitted when AI Gateway is unconfigured
 }
 
 export interface DailySummary {
@@ -37,6 +39,7 @@ export interface DailySummary {
   mentionsLinked: number;
   archivedNews: number;
   pruned: boolean;
+  thesesJudged: number;
 }
 
 interface CompanyRow {
@@ -278,6 +281,17 @@ export async function runDailyForGraph(supabase: Client, graphId: string, deps: 
     reportError(e, { scope: "runDailyForGraph.prune", graph: graphId });
   }
 
+  // Strict thesis-judge over the freshest evidence (bounded Sonnet cost). Only when a judge is wired.
+  let thesesJudged = 0;
+  if (deps.judge) {
+    try {
+      const judged = await judgeTheses(supabase, graphId, { judge: deps.judge, nowMs: deps.nowMs });
+      thesesJudged = judged.length;
+    } catch (e) {
+      reportError(e, { scope: "runDailyForGraph.judge", graph: graphId });
+    }
+  }
+
   return {
     graphId,
     trackedCompanies: companies.length,
@@ -288,5 +302,6 @@ export async function runDailyForGraph(supabase: Client, graphId: string, deps: 
     mentionsLinked,
     archivedNews,
     pruned,
+    thesesJudged,
   };
 }

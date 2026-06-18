@@ -11,6 +11,7 @@ import { sendDigestForGraph } from "@/server/digest/send-digest";
 import { sendBrief as sendViaResend } from "@/server/digest/resend";
 import { sendViaGmail } from "@/server/digest/gmail";
 import { summarizeBrief } from "@/server/digest/summarize";
+import { liveJudge } from "@/server/critic/judge-model";
 import { digestTo, digestTz, gmailUser } from "@/lib/env";
 import { reportError } from "@/lib/observability";
 
@@ -50,6 +51,8 @@ export async function GET(request: NextRequest) {
   };
   // The brief's LLM intro only runs when the AI Gateway is configured; otherwise it's template-only.
   const summarize = process.env.AI_GATEWAY_API_KEY ? summarizeBrief : undefined;
+  // The strict thesis-judge also needs the AI Gateway; omitted otherwise (the rest of the run still proceeds).
+  const judge = process.env.AI_GATEWAY_API_KEY ? liveJudge() : undefined;
   // Email sender: prefer Gmail SMTP (no domain needed, reaches any inbox), else Resend. Recipient
   // defaults to the Gmail account when DIGEST_TO isn't set, so a brief always has somewhere to go.
   const sendBrief = process.env.GMAIL_APP_PASSWORD ? sendViaGmail : sendViaResend;
@@ -64,7 +67,7 @@ export async function GET(request: NextRequest) {
     let daily: unknown = { skipped: "no active profile to attribute news to" };
     if (contributorId) {
       try {
-        daily = await runDailyForGraph(supabase, g.id, { market, worker, contributorId, nowMs });
+        daily = await runDailyForGraph(supabase, g.id, { market, worker, contributorId, nowMs, judge });
       } catch (e) {
         reportError(e, { scope: "cron.daily", graph: g.id });
         daily = { error: e instanceof Error ? e.message : String(e) };

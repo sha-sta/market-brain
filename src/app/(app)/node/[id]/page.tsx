@@ -4,6 +4,7 @@ import { requireActive, getCurrentGraphId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getAssets, getNeighbors, getNode, getRelated, type Neighbor } from "@/lib/graph";
 import { formatScalar, isEmptyValue, isRenderableRecord } from "@/lib/field-format";
+import { ThesisVerdict, type VerdictEvidence } from "@/components/thesis-verdict";
 
 const isUrl = (v: unknown): v is string => typeof v === "string" && /^https?:\/\//.test(v);
 
@@ -81,15 +82,24 @@ export default async function NodePage({ params }: { params: Promise<{ id: strin
 
   const data = (node.data ?? {}) as Record<string, unknown>;
   const body = typeof data.body === "string" ? data.body : "";
-  const fields = Object.entries(data).filter(([k, v]) => k !== "body" && !isEmptyValue(v));
+  // `judge`/`_provenance` are internal sub-objects with dedicated rendering — keep them out of the
+  // generic field list (the thesis verdict gets its own panel).
+  const fields = Object.entries(data).filter(([k, v]) => k !== "body" && k !== "judge" && k !== "_provenance" && !isEmptyValue(v));
   const nodeTags = node.tags ?? [];
 
-  // Provenance edges ("mentions") get their own sections; everything else stays in the link lists.
+  // Provenance edges ("mentions") + thesis verdict edges get their own sections; everything else stays.
   const isMention = (e: Neighbor) => e.type === "mentions";
+  const isThesisEdge = (e: Neighbor) => e.type === "confirms_thesis" || e.type === "challenges_thesis";
   const mentions = neighbors.outgoing.filter(isMention); // this note -> entities it mentions
   const mentionedIn = neighbors.incoming.filter(isMention); // notes that mention this entity
   const linksOut = neighbors.outgoing.filter((e) => !isMention(e));
-  const linkedFrom = neighbors.incoming.filter((e) => !isMention(e));
+  const linkedFrom = neighbors.incoming.filter((e) => !isMention(e) && !isThesisEdge(e));
+
+  // Strict-critic verdict (thesis nodes only): the persisted data.judge block + its confirm/challenge edges.
+  const toEvidence = (e: Neighbor): VerdictEvidence => ({ id: e.node.id, title: e.node.title, quote: e.evidence });
+  const judge = node.type === "thesis" && data.judge && typeof data.judge === "object" ? (data.judge as Record<string, unknown>) : null;
+  const confirming = neighbors.incoming.filter((e) => e.type === "confirms_thesis").map(toEvidence);
+  const challenging = neighbors.incoming.filter((e) => e.type === "challenges_thesis").map(toEvidence);
 
   return (
     <div className="p-6">
@@ -105,6 +115,22 @@ export default async function NodePage({ params }: { params: Promise<{ id: strin
           </span>
         )}
       </header>
+
+      {judge && (
+        <ThesisVerdict
+          strength={typeof judge.strength === "string" ? judge.strength : "weak"}
+          rationale={typeof judge.rationale === "string" ? judge.rationale : undefined}
+          bearCase={typeof judge.bear_case === "string" ? judge.bear_case : undefined}
+          thinFlags={
+            Array.isArray(judge.thin_reasoning_flags)
+              ? judge.thin_reasoning_flags.filter((x): x is string => typeof x === "string")
+              : undefined
+          }
+          confirming={confirming}
+          challenging={challenging}
+          judgedAt={typeof judge.judged_at === "string" ? judge.judged_at : undefined}
+        />
+      )}
 
       {fields.length > 0 && (
         <dl className="mb-6 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
