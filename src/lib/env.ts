@@ -91,6 +91,16 @@ export const alphaVantageKey = (): string | undefined => optionalString(process.
  *  without it). Returns undefined when unset — the EDGAR adapter then stays dormant rather than 403. */
 export const secEdgarUa = (): string | undefined => optionalString(process.env, "SEC_EDGAR_UA");
 
+/** Exa — open-web search + content extraction for gated research jobs. Dormant (no web research) when
+ *  unset; the research loop then falls back to re-reading the current graph only. */
+export const exaKey = (): string | undefined => optionalString(process.env, "EXA_API_KEY");
+
+/** Max interactive research jobs per user per ET day (the cost quota). Default 5. */
+export const researchDailyQuota = (): number => {
+  const n = Number(optionalString(process.env, "RESEARCH_DAILY_QUOTA") ?? "5");
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 5;
+};
+
 // --- Email senders. PREFERRED for a personal gift: Gmail SMTP (no domain/DNS, delivers to any
 // inbox). Resend is the alternative (needs a verified domain to reach arbitrary recipients). The cron
 // uses Gmail when GMAIL_APP_PASSWORD is set, else Resend, else composes + archives only. ---

@@ -698,6 +698,66 @@ export type Database = {
           },
         ]
       }
+      research_jobs: {
+        Row: {
+          cost_usd: number
+          created_at: string
+          error: string | null
+          graph_id: string
+          id: string
+          params: Json
+          prompt: string
+          requester: string
+          result_node_id: string | null
+          result_summary: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          cost_usd?: number
+          created_at?: string
+          error?: string | null
+          graph_id: string
+          id?: string
+          params?: Json
+          prompt: string
+          requester: string
+          result_node_id?: string | null
+          result_summary?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          cost_usd?: number
+          created_at?: string
+          error?: string | null
+          graph_id?: string
+          id?: string
+          params?: Json
+          prompt?: string
+          requester?: string
+          result_node_id?: string | null
+          result_summary?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_jobs_graph_id_fkey"
+            columns: ["graph_id"]
+            isOneToOne: false
+            referencedRelation: "graphs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_jobs_requester_fkey"
+            columns: ["requester"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tracked_entities: {
         Row: {
           candidate_status: string
@@ -763,6 +823,29 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "raw_uploads"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      claim_research_job: {
+        Args: { p_job_id: string }
+        Returns: {
+          cost_usd: number
+          created_at: string
+          error: string | null
+          graph_id: string
+          id: string
+          params: Json
+          prompt: string
+          requester: string
+          result_node_id: string | null
+          result_summary: string | null
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "research_jobs"
           isOneToOne: false
           isSetofReturn: true
         }
