@@ -17,8 +17,8 @@ export function NavMenu({ isAdmin }: { isAdmin: boolean }) {
       <Link href="/" className={link} onClick={close}>
         Home
       </Link>
-      <Link href="/portfolio" className={link} onClick={close}>
-        Portfolio
+      <Link href="/follow" className={link} onClick={close}>
+        Following
       </Link>
       <Link href="/brief" className={link} onClick={close}>
         Brief

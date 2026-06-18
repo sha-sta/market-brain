@@ -51,7 +51,13 @@ function ymd(ms: number): string {
 
 /** Load this graph's tracked company nodes (resolved to id + verbatim ticker + is_public). */
 async function trackedCompanies(supabase: Client, graphId: string): Promise<CompanyRow[]> {
-  const { data: tracked } = await supabase.from("tracked_entities").select("node_id").eq("graph_id", graphId);
+  // Only ACTIVE tracked entities incur API calls — candidates (engine-discovered, not yet promoted)
+  // are the cost firewall and must never be fetched here.
+  const { data: tracked } = await supabase
+    .from("tracked_entities")
+    .select("node_id")
+    .eq("graph_id", graphId)
+    .eq("candidate_status", "active");
   const ids = (tracked ?? []).map((t) => t.node_id);
   if (ids.length === 0) return [];
   const { data: nodes } = await supabase

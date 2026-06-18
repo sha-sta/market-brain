@@ -150,7 +150,11 @@ async function gatherAlerts(supabase: Client, graphId: string, sinceIso: string)
 /** Entities (suppliers, peers, news subjects) linked to >= 2 of the tracked names — the cross-holding
  *  connections a news reader can't see. */
 async function gatherConnections(supabase: Client, graphId: string): Promise<Connection[]> {
-  const { data: tracked } = await supabase.from("tracked_entities").select("node_id").eq("graph_id", graphId);
+  const { data: tracked } = await supabase
+    .from("tracked_entities")
+    .select("node_id")
+    .eq("graph_id", graphId)
+    .eq("candidate_status", "active");
   const trackedIds = new Set((tracked ?? []).map((t) => t.node_id));
   if (trackedIds.size < 2) return [];
 
