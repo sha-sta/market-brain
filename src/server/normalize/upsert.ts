@@ -6,6 +6,8 @@ import { slugify } from "./assemble";
 import type { NodeRecord, NodeType } from "./types";
 import type { RawRelation } from "./extract-schema";
 import { CONFIDENCE_WIKILINK, fieldToRelation, resolveGroundedEdge } from "./relations";
+import { asOfFromData, type Lifecycle } from "./lifecycle";
+import { reportError } from "@/lib/observability";
 
 // reason: node.data is JSON-origin (zod output of the LLM envelope), so the unknown->Json
 // assertion is sound. unknown->Json is a single allowed assertion (not an as-unknown-as cast).
@@ -17,6 +19,7 @@ const asJson = (v: unknown): Json => v as Json;
 
 type Client = SupabaseClient<Database>;
 type NodeRow = Database["public"]["Tables"]["nodes"]["Row"];
+type NodeUpdate = Database["public"]["Tables"]["nodes"]["Update"];
 
 // Promote an ambiguous fuzzy match to a confident merge when the same node is also a close
 // embedding neighbour (the "vector hit promotes a borderline match").
@@ -32,7 +35,7 @@ export function embedText(node: NodeRecord): string {
   const fields =
     node.type === "note"
       ? [node.title, d.summary]
-      : [node.title, d.name, d.headline, d.statement, d.description, d.definition, d.summary, d.body];
+      : [node.title, d.name, d.headline, d.statement, d.description, d.definition, d.summary, d.body, d.outcome, d.current_reading, d.mitigation];
   return fields.filter((v): v is string => typeof v === "string" && v.length > 0).join(" ").trim();
 }
 
@@ -54,6 +57,114 @@ export function extractLinks(node: NodeRecord): Array<{ dst: string; type: strin
   }
   node.relatesTo.forEach((v) => scan(v, "relates_to"));
   return links;
+}
+
+/** Minimal NodeRecord for embedText() purposes (only type/title/data are read). */
+function embedRecord(type: NodeType, title: string, data: Record<string, unknown>): NodeRecord {
+  return { id: "", type, title, status: "active", tags: [], relatesTo: [], source: "upload", data };
+}
+
+/** True when a write alters the embedded text, so the vector must be regenerated. Pure. */
+export function embedTextChanged(before: NodeRecord, after: NodeRecord): boolean {
+  return embedText(before) !== embedText(after);
+}
+
+export interface NodeWrite {
+  data?: Record<string, unknown>;
+  status?: string;
+  title?: string;
+  tags?: string[];
+  lifecycle?: Lifecycle;
+  supersededBy?: string | null;
+}
+
+export interface NodePrior {
+  type: NodeType;
+  title: string;
+  status?: string | null;
+  data: Record<string, unknown>;
+}
+
+export interface WriteNodeOpts {
+  /** Single-text embedder. Re-embed fires ONLY when the embedded text changes (the cost guard). */
+  embed?: (text: string) => Promise<number[]>;
+  /** Current node state — required to diff embedText and to snapshot a revision. */
+  prior?: NodePrior;
+  /** Why the write happened. Persisted to node_revisions when `snapshot` is set. */
+  reason?: string;
+  sourceUploadId?: string | null;
+  /** Snapshot the prior state into node_revisions BEFORE the write (supersede / manual edit / archive). */
+  snapshot?: boolean;
+  /** When set, stamps the freshness columns (data_as_of + source_upload_id) — a narrative-provenance
+   *  write. Omit for blank-fill enrichment (which must not claim narrative provenance). */
+  dataAsOf?: string | null;
+}
+
+/**
+ * The single choke-point for mutating an existing node. Re-embeds ONLY when the embedded text actually
+ * changed (so a cik/exchange fill never pays for an embedding, while a superseded summary does);
+ * optionally snapshots the prior state into node_revisions; optionally stamps freshness provenance.
+ * One UPDATE.
+ */
+export async function writeNodeData(
+  supabase: Client,
+  graphId: string,
+  nodeId: string,
+  patch: NodeWrite,
+  opts: WriteNodeOpts = {},
+): Promise<{ reembedded: boolean }> {
+  const update: NodeUpdate = {};
+  if (patch.data !== undefined) update.data = asJson(patch.data);
+  if (patch.status !== undefined) update.status = patch.status;
+  if (patch.title !== undefined) update.title = patch.title;
+  if (patch.tags !== undefined) update.tags = patch.tags;
+  if (patch.lifecycle !== undefined) update.lifecycle = patch.lifecycle;
+  if (patch.supersededBy !== undefined) update.superseded_by = patch.supersededBy;
+  // Narrative-provenance stamp (supersede / manual edit) — never on a blank-fill enrich. Only stamp a
+  // real upload id (`!= null`) so a missing one never CLEARS an existing source_upload_id.
+  if (opts.dataAsOf !== undefined) {
+    update.data_as_of = opts.dataAsOf;
+    if (opts.sourceUploadId != null) update.source_upload_id = opts.sourceUploadId;
+  }
+
+  let reembedded = false;
+  if (opts.embed && opts.prior && (patch.data !== undefined || patch.title !== undefined)) {
+    const before = embedRecord(opts.prior.type, opts.prior.title, opts.prior.data);
+    const after = embedRecord(opts.prior.type, patch.title ?? opts.prior.title, patch.data ?? opts.prior.data);
+    if (embedTextChanged(before, after)) {
+      const embedding = await opts.embed(embedText(after));
+      if (embedding.length > 0) {
+        update.embedding = toVector(embedding);
+        reembedded = true;
+      } else {
+        // Embedded text changed but the embedding came back empty (API timeout/failure). The data
+        // write still proceeds, but the vector would be left STALE — surface it rather than drift silently.
+        reportError(new Error("re-embed returned empty; node vector left stale"), { scope: "writeNodeData", nodeId });
+      }
+    }
+  }
+
+  if (Object.keys(update).length === 0) return { reembedded: false };
+
+  // Append the prior state to node_revisions BEFORE overwriting, so the change is reversible/auditable.
+  // NOTE: this insert and the UPDATE below are two statements, not one transaction. A transient failure
+  // of the UPDATE can leave an orphan revision (prior_data == current) — benign noise, never data loss.
+  if (opts.snapshot && opts.prior) {
+    const { error: revErr } = await supabase.from("node_revisions").insert({
+      graph_id: graphId,
+      node_id: nodeId,
+      prior_data: asJson(opts.prior.data),
+      prior_status: opts.prior.status ?? null,
+      prior_title: opts.prior.title,
+      reason: opts.reason ?? "manual",
+      source_upload_id: opts.sourceUploadId ?? null,
+    });
+    if (revErr) throw new Error(`node revision insert failed: ${revErr.message}`);
+  }
+
+  const { error } = await supabase.from("nodes").update(update).eq("graph_id", graphId).eq("id", nodeId);
+  if (error) throw new Error(`node write failed: ${error.message}`);
+  return { reembedded };
 }
 
 function rowToRecord(row: Pick<NodeRow, "id" | "type" | "title" | "status" | "tags" | "data">): NodeRecord {
@@ -97,6 +208,18 @@ export interface UpsertResult {
   action: "inserted" | "merged";
 }
 
+export interface UpsertOpts {
+  /** Enable the living-graph supersede path: a newer source overwrites stale narrative fields, snapshots
+   *  a revision, stamps freshness provenance, and re-embeds via the choke-point. Off by default (the
+   *  original fill-only merge, used by every existing test). */
+  supersede?: boolean;
+  sourceUploadId?: string | null;
+  /** Fallback "as of" for the incoming node when it carries no source date (published_at/filed_at/...). */
+  nowMs?: number;
+  /** Single-text embedder for the supersede re-embed (without it, a superseded vector is left stale). */
+  embed?: (text: string) => Promise<number[]>;
+}
+
 /** Dedupe `node` against the DB (within `graphId` only — dedupe never crosses graphs), then merge or
  *  insert. Returns the resolved node id. */
 export async function upsertNode(
@@ -105,6 +228,7 @@ export async function upsertNode(
   embedding: number[],
   contributor: string | null,
   graphId: string,
+  opts: UpsertOpts = {},
 ): Promise<UpsertResult> {
   const candidates = await sameTypeCandidates(supabase, node.type, graphId);
   const fields = { title: node.title, ...node.data };
@@ -121,12 +245,43 @@ export async function upsertNode(
       p_graph_id: graphId,
       match_threshold: VECTOR_BOOST_THRESHOLD,
       match_count: 5,
+      // Dedupe must see HIDDEN (archived/superseded) nodes too, so it never re-creates a near-duplicate.
+      p_include_hidden: true,
     });
     if ((neighbors ?? []).some((n) => n.id === dup.best!.id)) verdict = "match";
   }
 
   if (verdict === "match" && dup.best) {
     const existing = candidates.find((c) => c.id === dup.best!.id)!;
+    if (opts.supersede) {
+      // Living-graph merge: a newer source replaces stale narrative; snapshot a revision + stamp freshness.
+      const { data: prov } = await supabase
+        .from("nodes")
+        .select("data_as_of")
+        .eq("graph_id", graphId)
+        .eq("id", existing.id)
+        .maybeSingle();
+      const existingAsOfMs = prov?.data_as_of ? Date.parse(prov.data_as_of) : null;
+      const incomingAsOfMs = asOfFromData(node.data, opts.nowMs ?? Date.now());
+      const { merged, changed, superseded } = mergeNode(existing, node, { existingAsOfMs, incomingAsOfMs });
+      if (changed) {
+        await writeNodeData(
+          supabase,
+          graphId,
+          existing.id,
+          { data: merged.data, tags: merged.tags },
+          {
+            embed: opts.embed,
+            prior: { type: existing.type, title: existing.title, status: existing.status, data: existing.data },
+            reason: "supersede",
+            sourceUploadId: opts.sourceUploadId,
+            snapshot: superseded.length > 0, // only a real overwrite earns a revision row
+            dataAsOf: superseded.length > 0 ? new Date(incomingAsOfMs).toISOString() : undefined,
+          },
+        );
+      }
+      return { id: existing.id, action: "merged" };
+    }
     const { merged } = mergeNode(existing, node);
     const { error } = await supabase
       .from("nodes")

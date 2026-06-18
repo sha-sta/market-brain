@@ -15,7 +15,7 @@
     "db:start": "set -a; . ./.env.local 2>/dev/null || true; set +a; supabase start",
     "db:stop": "supabase stop",
     "db:reset": "set -a; . ./.env.local 2>/dev/null || true; set +a; supabase db reset",
-    "db:types": "SUPABASE_ACCESS_TOKEN=local supabase gen types typescript --db-url postgresql://postgres:postgres@127.0.0.1:55322/postgres > src/lib/database.types.ts",
+    "db:types": "tmp=$(mktemp); (cd /tmp && SUPABASE_ACCESS_TOKEN=local \"$INIT_CWD/node_modules/.bin/supabase\" gen types typescript --db-url postgresql://postgres:postgres@127.0.0.1:55322/postgres) > \"$tmp\" && mv \"$tmp\" src/lib/database.types.ts",
     "db:test:start": "supabase start --workdir supabase-test",
     "db:test:stop": "supabase stop --workdir supabase-test",
     "db:test:reset": "supabase db reset --workdir supabase-test",

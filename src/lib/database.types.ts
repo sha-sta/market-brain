@@ -7,31 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       alert_events: {
@@ -329,6 +304,60 @@ export type Database = {
           },
         ]
       }
+      metric_snapshots: {
+        Row: {
+          as_of: string | null
+          captured_at: string
+          graph_id: string
+          id: string
+          metric: string
+          node_id: string
+          source: string | null
+          source_upload_id: string | null
+          unit: string | null
+          value: number | null
+        }
+        Insert: {
+          as_of?: string | null
+          captured_at?: string
+          graph_id: string
+          id?: string
+          metric: string
+          node_id: string
+          source?: string | null
+          source_upload_id?: string | null
+          unit?: string | null
+          value?: number | null
+        }
+        Update: {
+          as_of?: string | null
+          captured_at?: string
+          graph_id?: string
+          id?: string
+          metric?: string
+          node_id?: string
+          source?: string | null
+          source_upload_id?: string | null
+          unit?: string | null
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "metric_snapshots_graph_id_node_id_fkey"
+            columns: ["graph_id", "node_id"]
+            isOneToOne: false
+            referencedRelation: "nodes"
+            referencedColumns: ["graph_id", "id"]
+          },
+          {
+            foreignKeyName: "metric_snapshots_source_upload_id_fkey"
+            columns: ["source_upload_id"]
+            isOneToOne: false
+            referencedRelation: "raw_uploads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       node_merge_candidates: {
         Row: {
           created_at: string
@@ -384,17 +413,73 @@ export type Database = {
           },
         ]
       }
+      node_revisions: {
+        Row: {
+          changed_at: string
+          graph_id: string
+          id: string
+          node_id: string
+          prior_data: Json
+          prior_status: string | null
+          prior_title: string | null
+          reason: string
+          source_upload_id: string | null
+        }
+        Insert: {
+          changed_at?: string
+          graph_id: string
+          id?: string
+          node_id: string
+          prior_data: Json
+          prior_status?: string | null
+          prior_title?: string | null
+          reason: string
+          source_upload_id?: string | null
+        }
+        Update: {
+          changed_at?: string
+          graph_id?: string
+          id?: string
+          node_id?: string
+          prior_data?: Json
+          prior_status?: string | null
+          prior_title?: string | null
+          reason?: string
+          source_upload_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "node_revisions_graph_id_node_id_fkey"
+            columns: ["graph_id", "node_id"]
+            isOneToOne: false
+            referencedRelation: "nodes"
+            referencedColumns: ["graph_id", "id"]
+          },
+          {
+            foreignKeyName: "node_revisions_source_upload_id_fkey"
+            columns: ["source_upload_id"]
+            isOneToOne: false
+            referencedRelation: "raw_uploads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       nodes: {
         Row: {
           contributor: string | null
           created_at: string
           data: Json
+          data_as_of: string | null
           embedding: string | null
           graph_id: string
           id: string
+          last_judged_at: string | null
+          lifecycle: string
           module: string
           search: unknown
+          source_upload_id: string | null
           status: string | null
+          superseded_by: string | null
           tags: string[]
           title: string
           type: string
@@ -404,12 +489,17 @@ export type Database = {
           contributor?: string | null
           created_at?: string
           data?: Json
+          data_as_of?: string | null
           embedding?: string | null
           graph_id: string
           id: string
+          last_judged_at?: string | null
+          lifecycle?: string
           module?: string
           search?: unknown
+          source_upload_id?: string | null
           status?: string | null
+          superseded_by?: string | null
           tags?: string[]
           title: string
           type: string
@@ -419,12 +509,17 @@ export type Database = {
           contributor?: string | null
           created_at?: string
           data?: Json
+          data_as_of?: string | null
           embedding?: string | null
           graph_id?: string
           id?: string
+          last_judged_at?: string | null
+          lifecycle?: string
           module?: string
           search?: unknown
+          source_upload_id?: string | null
           status?: string | null
+          superseded_by?: string | null
           tags?: string[]
           title?: string
           type?: string
@@ -443,6 +538,13 @@ export type Database = {
             columns: ["graph_id"]
             isOneToOne: false
             referencedRelation: "graphs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nodes_source_upload_id_fkey"
+            columns: ["source_upload_id"]
+            isOneToOne: false
+            referencedRelation: "raw_uploads"
             referencedColumns: ["id"]
           },
         ]
@@ -707,6 +809,7 @@ export type Database = {
           match_count?: number
           match_threshold?: number
           p_graph_id: string
+          p_include_hidden?: boolean
           query_embedding: string
         }
         Returns: {
@@ -720,6 +823,7 @@ export type Database = {
         Args: { drop_id: string; keep_id: string; p_graph_id: string }
         Returns: undefined
       }
+      prune_snapshots: { Args: { p_graph_id: string }; Returns: undefined }
       upsert_edge: {
         Args: {
           p_confidence: number
@@ -862,9 +966,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },

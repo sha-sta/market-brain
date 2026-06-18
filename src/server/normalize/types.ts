@@ -13,6 +13,13 @@ export const NODE_TYPES = [
   "news", // one research node per article (created by the daily cron or a paste)
   "filing", // SEC 8-K / Form 4
   "thesis", // the user's own investment thesis, as a node (so it embeds + gets confirm/challenge edges)
+  "catalyst", // a dated, awaited event that can move an entity (earnings, launch, ruling, Fed meeting)
+  "macro_factor", // a market-wide driver (rates, inflation, FX, oil, the semi cycle) that ripples across names
+  "risk", // a named risk factor (concentration, geopolitics, regulation, litigation) — powers the bear case
+  "product", // a product/platform (H200, Ozempic, FSD) — how demand flows between companies
+  "commodity", // a raw material / critical input (lithium, HBM, neon gas) — surfaces hidden dependencies
+  "organization", // a non-company actor (Fed, SEC, FDA, OPEC) that acts on the market
+  "signal", // a dated, observed indicator that supersedes a prior reading
   "note", // a free-text dump, identical to brain's worker-only note
 ] as const;
 

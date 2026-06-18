@@ -1,8 +1,12 @@
-// Conservative merge — faithful port of normalize.py `_merge`. When an incoming entity is a
-// confident duplicate of an existing node, we GROW the existing node rather than replacing it:
-// fill empty scalars, union list fields, and never clobber a value that's already there.
+// Conservative merge — faithful port of normalize.py `_merge`. When an incoming entity is a confident
+// duplicate of an existing node, we GROW the existing node: fill empty scalars, union list fields, and
+// never clobber a value that's already there. OPTIONAL supersede mode (pass `supersede`) additionally
+// SWAPS a narrative field's value when the incoming source is newer (the living-graph "old for new"
+// rule, decideSupersede in lifecycle.ts) — identity fields are never touched. Without `supersede` the
+// behavior is byte-identical to the original fill-only merge.
 
 import type { NodeRecord, NoteData } from "./types";
+import { decideSupersede } from "./lifecycle";
 
 // Append-only logs are owned by the outreach pipeline, not the normalizer — never merged here.
 const SKIP_FIELDS = new Set(["messages", "outreach_log"]);
@@ -29,12 +33,23 @@ function unionList(a: unknown[], b: unknown[]): { result: unknown[]; changed: bo
   return { result, changed };
 }
 
-/** Merge `incoming` into a copy of `existing`. Returns the new record + whether it changed. */
+/** When merging, swap a narrative field for a newer source's value (decideSupersede). Both timestamps
+ *  are ms; null means undated. Omit to get the original fill-only merge. */
+export interface SupersedeContext {
+  existingAsOfMs: number | null;
+  incomingAsOfMs: number | null;
+}
+
+/** Merge `incoming` into a copy of `existing`. Returns the new record, whether it changed, and the
+ *  list of fields that were SUPERSEDED (overwritten because the incoming source was newer) — empty
+ *  unless `supersede` is supplied. */
 export function mergeNode(
   existing: NodeRecord,
   incoming: NodeRecord,
-): { merged: NodeRecord; changed: boolean } {
+  supersede?: SupersedeContext,
+): { merged: NodeRecord; changed: boolean; superseded: string[] } {
   let changed = false;
+  const superseded: string[] = [];
   const data: NoteData = { ...existing.data };
 
   for (const [key, incomingVal] of Object.entries(incoming.data)) {
@@ -52,10 +67,24 @@ export function mergeNode(
       continue;
     }
 
-    // Scalar: only fill when existing is empty and incoming has something.
+    // Scalar: fill when existing is empty and incoming has something.
     if (isEmpty(existingVal) && !isEmpty(incomingVal)) {
       data[key] = incomingVal;
       changed = true;
+      continue;
+    }
+
+    // Supersede: a newer source replaces a narrative field that already had a (different) value.
+    if (
+      supersede &&
+      !isEmpty(incomingVal) &&
+      !isEmpty(existingVal) &&
+      JSON.stringify(existingVal) !== JSON.stringify(incomingVal) &&
+      decideSupersede(key, supersede.existingAsOfMs, supersede.incomingAsOfMs)
+    ) {
+      data[key] = incomingVal;
+      changed = true;
+      superseded.push(key);
     }
   }
 
@@ -70,5 +99,5 @@ export function mergeNode(
     tags: tags.result as string[],
     relatesTo: relatesTo.result as string[],
   };
-  return { merged, changed };
+  return { merged, changed, superseded };
 }

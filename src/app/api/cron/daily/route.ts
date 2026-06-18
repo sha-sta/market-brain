@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     extract: extractEntities,
     embed: embedTexts,
     neighbors: makeNeighborLookup(supabase),
-    enrichEntities: makeFinanceEnricher(supabase, market),
+    enrichEntities: makeFinanceEnricher(supabase, market, (t) => embedTexts([t]).then((r) => r[0] ?? [])),
   };
   // The brief's LLM intro only runs when the AI Gateway is configured; otherwise it's template-only.
   const summarize = process.env.AI_GATEWAY_API_KEY ? summarizeBrief : undefined;

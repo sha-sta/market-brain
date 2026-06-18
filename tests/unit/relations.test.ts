@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, it, expect } from "vitest";
 import {
   STRONG_RELATIONS,
@@ -70,5 +72,34 @@ describe("isAssertable mirrors the DB generated column", () => {
     expect(isAssertable({ relation_type: "supplies_to", confidence: 0.9, evidence_quote: null })).toBe(false);
     expect(isAssertable({ relation_type: "supplies_to", confidence: 0.5, evidence_quote: "q" })).toBe(false);
     expect(isAssertable({ relation_type: "mentions", confidence: 0.9, evidence_quote: "q" })).toBe(false);
+  });
+});
+
+// The `assertable` flag is sourced in THREE places that must agree: STRONG_RELATIONS (this module),
+// the generated-column literal in the latest *_finance_assertable*.sql, and isStrong() (the JS mirror).
+// A drift silently fabricates facts (literal too wide) or kills every assertion (literal too narrow).
+describe("assertable vocab stays in sync across TS + SQL", () => {
+  // Read lazily INSIDE each test so a missing migrations dir surfaces as a test failure, not a
+  // collection-time ENOENT that crashes the whole suite.
+  function latestAssertableSql(): { file: string; sql: string } {
+    const migDir = resolve(process.cwd(), "supabase/migrations");
+    const file = readdirSync(migDir)
+      .filter((f) => /finance_assertable.*\.sql$/i.test(f))
+      .sort()
+      .at(-1);
+    if (!file) throw new Error("no *_finance_assertable*.sql migration found");
+    return { file, sql: readFileSync(resolve(migDir, file), "utf8") };
+  }
+
+  it("the SQL generated-column literal equals STRONG_RELATIONS exactly", () => {
+    const { file, sql } = latestAssertableSql();
+    const block = sql.match(/relation_type\s+in\s*\(([\s\S]*?)\)/i);
+    expect(block, `no 'relation_type in (...)' literal found in ${file}`).toBeTruthy();
+    const sqlSet = new Set([...block![1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]));
+    expect(sqlSet).toEqual(new Set<string>(STRONG_RELATIONS));
+  });
+
+  it("every STRONG relation is classified strong by the JS mirror", () => {
+    for (const r of STRONG_RELATIONS) expect(isStrong(r)).toBe(true);
   });
 });

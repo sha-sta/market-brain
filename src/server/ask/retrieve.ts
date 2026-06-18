@@ -42,7 +42,12 @@ export async function retrieveSources(
   const ids = mergeRetrieval(vectorIds, fts.map((n) => n.id), cap);
   if (ids.length === 0) return [];
 
-  const { data: nodes } = await supabase.from("nodes").select("id, title, type, data").eq("graph_id", graphId).in("id", ids);
+  const { data: nodes } = await supabase
+    .from("nodes")
+    .select("id, title, type, data")
+    .eq("graph_id", graphId)
+    .in("id", ids)
+    .in("lifecycle", ["active", "stale"]); // belt-and-suspenders: match_nodes/searchNodes already exclude hidden
   const byId = new Map((nodes ?? []).map((n) => [n.id, n]));
   // Preserve the merged ranking order.
   return ids

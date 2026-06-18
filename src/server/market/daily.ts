@@ -3,7 +3,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
 import { drainPending } from "@/server/normalize/drain";
 import type { WorkerDeps } from "@/server/normalize/worker";
-import { upsertEdge } from "@/server/normalize/upsert";
+import { upsertEdge, writeNodeData } from "@/server/normalize/upsert";
+import { newsArchiveCutoffMs } from "@/server/normalize/lifecycle";
 import { CONFIDENCE_WEAK } from "@/server/normalize/relations";
 import { canonicalizeUrl, normTicker } from "@/server/normalize/dedupe";
 import { reportError } from "@/lib/observability";
@@ -34,6 +35,8 @@ export interface DailySummary {
   newsSkipped: number;
   drained: number;
   mentionsLinked: number;
+  archivedNews: number;
+  pruned: boolean;
 }
 
 interface CompanyRow {
@@ -209,6 +212,39 @@ async function linkNewsMentions(supabase: Client, graphId: string, runStartIso: 
   return linked;
 }
 
+/** Archive stale, aging news so it drops out of default views + RAG (recoverable; edges preserved). A
+ *  news node archives when its effective date (published_at, else created_at) is older than the
+ *  materiality-based window. Snapshots a revision per node. Returns the count archived. */
+export async function archiveStaleNews(supabase: Client, graphId: string, nowMs: number): Promise<number> {
+  const { data: rows } = await supabase
+    .from("nodes")
+    .select("id, title, status, data, created_at")
+    .eq("graph_id", graphId)
+    .eq("type", "news")
+    .eq("lifecycle", "active");
+  let archived = 0;
+  for (const r of rows ?? []) {
+    const data = (r.data ?? {}) as Record<string, unknown>;
+    const dateStr = typeof data.published_at === "string" && data.published_at ? data.published_at : r.created_at;
+    const t = Date.parse(dateStr);
+    const effective = Number.isNaN(t) ? nowMs : t;
+    if (effective >= newsArchiveCutoffMs(data.materiality, nowMs)) continue; // still fresh enough
+    try {
+      await writeNodeData(
+        supabase,
+        graphId,
+        r.id,
+        { lifecycle: "archived" },
+        { prior: { type: "news", title: r.title, status: r.status, data }, reason: "archive", snapshot: true },
+      );
+      archived += 1;
+    } catch (e) {
+      reportError(e, { scope: "archiveStaleNews", nodeId: r.id });
+    }
+  }
+  return archived;
+}
+
 /** Run the daily fetch→graph pipeline for one graph. Returns a summary (the route also sends the
  *  brief afterwards via sendDigest). Always attempts every step; per-call failures degrade. */
 export async function runDailyForGraph(supabase: Client, graphId: string, deps: DailyDeps): Promise<DailySummary> {
@@ -220,6 +256,22 @@ export async function runDailyForGraph(supabase: Client, graphId: string, deps: 
   const drain = await drainPending(supabase, deps.worker);
   const mentionsLinked = await linkNewsMentions(supabase, graphId, runStartIso);
 
+  // Living-graph upkeep, isolated so a failure never aborts the fetch/brief.
+  let archivedNews = 0;
+  try {
+    archivedNews = await archiveStaleNews(supabase, graphId, deps.nowMs);
+  } catch (e) {
+    reportError(e, { scope: "runDailyForGraph.archive", graph: graphId });
+  }
+  let pruned = false;
+  try {
+    const { error } = await supabase.rpc("prune_snapshots", { p_graph_id: graphId });
+    if (error) throw new Error(error.message);
+    pruned = true;
+  } catch (e) {
+    reportError(e, { scope: "runDailyForGraph.prune", graph: graphId });
+  }
+
   return {
     graphId,
     trackedCompanies: companies.length,
@@ -228,5 +280,7 @@ export async function runDailyForGraph(supabase: Client, graphId: string, deps: 
     newsSkipped: skipped,
     drained: drain.processed,
     mentionsLinked,
+    archivedNews,
+    pruned,
   };
 }
