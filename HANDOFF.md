@@ -1,12 +1,14 @@
 # MarketBrain — handoff
 
-_Last updated: 2026-06-17. Repo: `github.com/sha-sta/market-brain` (private). Branch `main`, head `5e697bf`._
+_Last updated: 2026-06-18. Repo: `github.com/sha-sta/market-brain` (private)._
+_Active branch: **`living-brain-refactor`** (head `6566c91`). `main` (head `1987d93`) and the cloud
+deploy are UNTOUCHED by the refactor — nothing below is live until you push migrations + merge (see Deploy)._
 
-A private **stock-market research knowledge graph** — a Father's Day gift. Not a stock tracker: a graph
-that grows organically around the names/themes/theses the user cares about, with a **morning email
-brief** as the flagship. **Posture: aggregate & surface only — never any buy/sell/recommend vocabulary.**
-Ported from the `brain` knowledge-graph app (`~/Desktop/Projects/brain`); the graph/pipeline/auth/RLS
-carried over, the domain types/prompt/adapters/cron/brief are finance-specific.
+A private **stock-market research knowledge graph** — a Father's Day gift. Originally a manual portfolio
+tracker; the `living-brain-refactor` branch turns it into a **self-updating research brain**: dad tracks
+names/industries he cares about, the graph refreshes and amends itself (swaps stale facts, archives dead
+news, re-judges theses), discovers cross-connections, researches topics from the open web on request, and
+produces **strict, non-sycophantic** theses. **Posture: aggregate & surface only — never any buy/sell/recommend vocabulary.**
 
 ---
 
@@ -14,171 +16,84 @@ carried over, the domain types/prompt/adapters/cron/brief are finance-specific.
 
 | Area | State |
 | --- | --- |
-| Code | ✅ Complete + on GitHub (8 commits). 94 TS/TSX files, 20 migrations, 12 test files. |
-| Tests | ✅ 57 unit + 4 integration (real test DB) + 6 e2e. Production `next build` green. Typecheck clean. |
-| Adversarial review | ✅ Ran; 7 confirmed findings all fixed (XSS, cron isolation, brief correctness, …). |
-| Supabase cloud | ✅ Project `nrzyfqhfbseihxzwcvns`; all migrations pushed (13 tables live). Google auth working. |
-| Vercel | ✅ Deployed; site loads; you're signed in as **admin**. |
-| Seed | ⚠️ **Verify** — run `npm run seed` against cloud if the graph looks empty (see Outstanding). |
-| Email (brief) | ⛔ **Pending** — Gmail App Password blocked by a Google security cooldown (you reset your password). Set 3 env vars when it clears. The brief already renders in-app at `/brief` without email. |
-| EDGAR filings, alerts, thesis-judge | ⏸️ Deferred stretch (see Outstanding). |
+| Refactor code | ✅ Complete on `living-brain-refactor` (6 phases, commits `0383eb3`→`6566c91`). NOT merged to `main`. |
+| Tests | ✅ 110 unit + 23 integration (real test DB) + 6 e2e. Production `next build` green. Typecheck clean. |
+| Reviews | ✅ Every phase passed DB / TypeScript / security review agents; all findings fixed (SSRF, XSS, quota, field-injection, assertable sync). |
+| Cloud (Supabase + Vercel) | ⚠️ Still on the PRE-refactor schema. Migrations `0032–0042` are NOT pushed; branch is NOT deployed. |
+| Let dad in (OAuth) | ⛔ **Still pending** — publish the Google consent screen or add him as a test user, then approve at `/admin`. |
+| Email (brief) | ⛔ **Still pending** — Gmail App Password (`GMAIL_USER`/`GMAIL_APP_PASSWORD`/`DIGEST_TO`). Brief renders in-app at `/brief` without it. |
 
 ---
 
-## What's implemented
+## What the refactor shipped (by phase, all on `living-brain-refactor`)
 
-**Graph + pipeline (ported, finance-retyped)** — `src/server/normalize/*`
-- Node types: `company, person, sector, theme, news, filing, thesis, note`.
-- Edge vocab: STRONG `owns, in_sector, in_theme, founded_by, subsidiary_of, supplies_to, competes_with,
-  listed_on, filed, insider_of`; WEAK `mentions, relevant_to, covers, confirms_thesis, challenges_thesis,
-  co_occurs, relates_to`. The `assertable` generated column (migration `0025`) lists the STRONG set and
-  **must stay in sync** with `relations.ts`.
-- Dedupe hard keys (`dedupe.ts`): ticker / CIK / canonical-URL / accession. A hard-key match overrides
-  name fuzz; a **conflict blocks** a merge (the fabricated-ticker guard).
-- Extraction prompt (`prompt.ts`) forbids ticker fabrication + any advice. Extraction is `generateText`
-  + `JSON.parse` (NOT `generateObject` — open frontmatter would return `{}`). Model = sonnet-4.6.
-- Worker (`worker.ts`) reuses brain's orchestration; the scholarly author-enrichment seam is replaced by
-  `enrichEntities` (`market/enrich.ts`) which grounds a company's cik/exchange/website in real data.
+- **P0 — foundations** (`0383eb3`): Haiku/Sonnet model tiering (`model.ts` — grunt→Haiku, judgment→Sonnet, escalate-on-retry); `CostMeter` + per-run/day/job ceilings (`normalize/budget.ts`); `writeNodeData` re-embed choke-point (`upsert.ts` — re-embeds only when embedded text changes; also fixed enrichment never re-embedding); the **assertable TS↔SQL sync-guard test** (`tests/unit/relations.test.ts`) over a previously-unguarded triple-sourced invariant.
+- **P1 — richer graph** (`0383eb3`): 7 new node types — `catalyst, macro_factor, risk, product, commodity, organization, signal` — plus 7 STRONG + 2 WEAK edge relations. Migrations `0032` (assertable_v2), `0033` (search tsvector v2).
+- **P2 — living graph** (`0383eb3`): fact lifecycle. Supersede-on-newer-source merge (`merge.ts`/`lifecycle.ts`, identity fields protected) with `node_revisions` history; news archival; price/metric snapshot pruning; per-node freshness provenance; re-embed on change. Migrations `0034`–`0039` (lifecycle col, node_revisions, provenance, metric_snapshots, prune fn, match_nodes excludes archived).
+- **P3 — drop portfolio, add tracking** (`5734998`): **dropped the `positions` table** + all P&L code; new `/follow` CRUD + lightweight `owned` flag; `tracked_entities` gained `source/candidate_status/score/last_surfaced_at` + kind `discovered`. Migrations `0040` (drop positions — destructive), `0041` (candidate cols). The daily readers filter `candidate_status='active'` (the cost firewall).
+- **P4 — strict critic** (`62f9b4a`): the thesis-judge (`server/critic/`) — gathers a thesis's evidence subgraph, grounds the model's claims (drops unverified quotes + hallucinated ids), and applies **`enforceFloor`**, a deterministic backstop that demotes any rating the verified evidence can't support (the model cannot inflate). Writes WEAK `confirms_thesis`/`challenges_thesis` edges + a verdict (strength + mandatory bear case). De-sycophantized Ask + brief-intro prompts; brief gained a "Thesis check-ins" section; thesis-verdict UI on `/node/[id]`.
+- **P5 — web research + auto-discovery** (`dfdd42e`): Exa web-search adapter (`server/market/websearch.ts`, SSRF-hardened) + the gated `research_jobs` queue (`/research` page, `/api/research/run`, `server/research/`) — search → populate graph → strict sourced synthesis with a bear case. Auto-discovery (`detectConnections` in `daily.ts`) promotes cross-holding entities to tracked **candidates** (never fetched until promoted) and decays stale ones. Migration `0042` (research_jobs + claim RPC + a DB rate-limit backstop).
+- **P6 — manual control** (`6566c91`): edit / archive / restore a node from its page (`node/[id]/actions.ts`, `components/node-editor.tsx`) — every edit snapshots a revision + re-embeds via the P0 choke-point; a server-side allowlist blocks editing identity/internal fields.
 
-**Market adapters** — `src/server/market/*`
-- `finnhub.ts` (quotes + news, **primary**), `fmp.ts` (profile/earnings/ratings), `alphavantage.ts`
-  (news fallback, 25/day), `edgar.ts` (filings, keyless + UA-gated). All degrade to `[]`/`null` (never
-  crash the cron); missing key ⇒ that source is dormant. `index.ts` assembles `liveMarketDeps()`.
-- `rank.ts` — pure relevance+recency+materiality scoring (caps items before the LLM).
-- `daily.ts` — `runDailyForGraph`: prices→`price_snapshots` (private cos skipped via `is_public`),
-  news→`raw_uploads`→drain→`news` nodes→ticker→holding `mentions` edges. Injected deps ⇒ integration-tested.
-
-**Morning brief** — `src/server/digest/*`
-- `gather.ts` — movers, ranked news (+ the holdings each names), filings, alerts, and the cross-holding
-  **connection-surfacing** ("TSMC appears across 3 of your holdings").
-- `compose.ts` — **pure** `composeBrief` (LLM intro injected; template-only fallback; no-advice footer;
-  http(s)-only hrefs).
-- `gmail.ts` (preferred sender, no domain) / `resend.ts` (alt sender) / `summarize.ts` (sonnet intro) /
-  `send-digest.ts` (ET-date idempotency; archives to `digest_log`).
-
-**App** — `src/app/*`, `src/components/*`, `src/lib/*`
-- Google sign-in + approved-users allowlist (pending → admin-approve → active). `/admin` approval queue
-  (admin-only nav link). `(app)` route group: home graph + Happy Father's Day hero, `/portfolio`
-  (live P&L, concentration), `/brief` (archived html), `/dump`, `/ask` (RAG; ASK_SYSTEM de-advised),
-  `/node/[id]`, graph viz recolored for finance. Cron at `/api/cron/daily` (CRON_SECRET fail-closed,
-  `maxDuration=300`, one job does fetch + brief).
-- Portfolio math (`lib/portfolio.ts`) is pure + tested: public = price×shares vs cost; private = manual_value.
-
-**Database** — `supabase/migrations/0001–0031`
-- Graph core (`0001–0010,0016,0017`) + adapted `0023` (composite-PK graph isolation, outreach/author
-  bits stripped) + finance `0025–0031` (assertable revocab, tracked_entities, positions, price_snapshots,
-  alert_rules/events, digest_log, raw_uploads `news` kind + `source_ref`). 13 tables. Every new table has
-  RLS **and** explicit GRANTs (RLS alone 403s); cron-written tables grant `service_role`.
+New code lives under `src/server/critic/`, `src/server/research/`, `src/app/(app)/{follow,research}/`, plus `server/market/websearch.ts` and `server/normalize/{budget,lifecycle}.ts`. Migrations now run `0001–0042` (gaps `0011–0015,0018–0022,0024` are intentional brain-lineage holes).
 
 ---
 
-## Repo layout
+## Deploy the refactor (do these in order)
 
-```
-src/server/normalize/   graph pipeline (types/schemas/prompt/dedupe/relations/worker/upsert/…)
-src/server/market/      adapters (finnhub/fmp/alphavantage/edgar), index, enrich, rank, daily (cron logic)
-src/server/digest/      gather/compose/summarize, gmail/resend senders, send-digest
-src/server/ask/         RAG prompt + retrieve
-src/lib/                auth, env, graphs, supabase clients, portfolio, graph-style, observability
-src/app/(app)/          authed pages: home, portfolio, brief, dump, ask, admin, node/[id]
-src/app/api/cron/daily/ the daily cron route
-supabase/migrations/    0001–0031
-scripts/seed.ts         seeds dad's graph (run after db push)
-tests/{unit,integration,e2e}/
-```
-
-## Run locally
-
-```bash
-npm install
-# .env.local already has the local isolated stack pointed at ports 5532x (see below)
-npm run db:start && npm run db:reset && npm run seed
-npm run dev            # http://localhost:3000
-npm test               # unit
-npm run db:test:start && npm run db:test:reset && npm run test:integration
-npm run e2e
-```
-
-**Supabase isolation (important):** MarketBrain's local stack is fully separate from `brain`.
-`project_id "marketbrain"`, ports **5532x** (main) / **5533x** (test). `.env.local` → `127.0.0.1:55321`,
-`.env.test.local` → `127.0.0.1:55331`. Local demo JWT keys (non-secret). Two local stacks may currently
-be running — `npm run db:stop` / `npm run db:test:stop` to stop.
+1. **Push the new migrations to cloud** (`0032–0042`): from the repo with the cloud project linked, `npx supabase db push`. ⚠️ **`0040` DROPS the `positions` table** — verify it's empty first (`select count(*) from positions;`); it's pre-use so this should be safe, but it deletes data.
+2. **Regenerate types if developing further:** `npm run db:types` (the script was hardened to run from `/tmp` to dodge a Supabase CLI 2.106 config-parse bug — don't "simplify" it back).
+3. **Set the new Vercel env vars** (both optional — features stay dormant without them):
+   - `EXA_API_KEY` — open-web research (dashboard.exa.ai → API Keys). Without it, `/research` re-reads the existing graph only.
+   - `RESEARCH_DAILY_QUOTA` — interactive research jobs per user per 24h (default 5).
+   - The thesis-judge + research synth reuse the existing **`AI_GATEWAY_API_KEY`** (no new key).
+4. **Merge** `living-brain-refactor` → `main` (open a PR for review, or fast-forward). Cadence stays **1×/day** on the existing Vercel cron (`0 11 * * 1-5` UTC) — the engine is built route-callable (`?stage=`) so multi-run can be added later with no rework.
 
 ---
 
-## Deploy state (cloud)
+## Cloud deploy state (unchanged from pre-refactor)
 
-- **Supabase**: project ref `nrzyfqhfbseihxzwcvns` (`https://nrzyfqhfbseihxzwcvns.supabase.co`). All
-  migrations pushed (verified via schema dump — 13 tables + all RPCs). Google provider enabled.
-  Google OAuth client has the redirect URI `https://nrzyfqhfbseihxzwcvns.supabase.co/auth/v1/callback`.
-  Site URL + redirect URLs set to the Vercel domain.
-- **Vercel**: deployed; `vercel.json` registers the daily cron `0 11 * * 1-5` UTC (~7am ET weekdays).
-  Vercel auto-attaches `Authorization: Bearer $CRON_SECRET` to scheduled runs.
-- **You** are promoted to active+admin (out-of-band SQL — the first admin always is).
+- **Supabase**: project ref `nrzyfqhfbseihxzwcvns` (`https://nrzyfqhfbseihxzwcvns.supabase.co`). Google provider enabled; redirect URI `…/auth/v1/callback` registered. Christian is active+admin. **Schema is still pre-refactor — see Deploy step 1.**
+- **Vercel**: deployed off `main`; `vercel.json` cron `0 11 * * 1-5` UTC (~7am ET weekdays); auto-attaches `Authorization: Bearer $CRON_SECRET`.
+- **Local stacks** (isolated from `brain`): `project_id "marketbrain"`, ports **5532x** main / **5533x** test. `npm run db:start` / `db:test:start`. See [[marketbrain-supabase-isolation]].
 
-### Env vars (where each lives)
-Required in **Vercel**: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
-`SUPABASE_SERVICE_ROLE_KEY`, `AI_GATEWAY_API_KEY` (paid credits), `CRON_SECRET`. Recommended:
-`FINNHUB_API_KEY`. Optional: `FMP_API_KEY`, `SEC_EDGAR_UA` (inert until filings wired), `DIGEST_TZ`.
-Email (pending): `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `DIGEST_TO`. **Do NOT** put `GOOGLE_OAUTH_*` in
-Vercel (local-dev only; prod Google is in the Supabase dashboard). `BOOTSTRAP_ADMIN_EMAIL` is only read
-by `scripts/seed.ts`.
+### Env var placement
+Required in **Vercel**: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `AI_GATEWAY_API_KEY` (paid credits), `CRON_SECRET`. Recommended: `FINNHUB_API_KEY`. Optional: `FMP_API_KEY`, `SEC_EDGAR_UA`, `EXA_API_KEY`, `RESEARCH_DAILY_QUOTA`, `DIGEST_TZ`. Email (pending): `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `DIGEST_TO`. **Do NOT** put `GOOGLE_OAUTH_*` in Vercel (prod Google lives in the Supabase dashboard). `BOOTSTRAP_ADMIN_EMAIL` is read only by `scripts/seed.ts`.
 
 ---
 
 ## Outstanding / next steps
 
-1. **Verify the cloud graph is seeded.** In Supabase SQL Editor: `select count(*) from public.nodes;`
-   (expect 20) and `select id,name from public.graphs;` (expect the renamed "Dad's Market"). If empty,
-   run the seed against cloud:
-   ```bash
-   NEXT_PUBLIC_SUPABASE_URL="https://nrzyfqhfbseihxzwcvns.supabase.co" \
-   SUPABASE_SERVICE_ROLE_KEY="<service_role key>" \
-   AI_GATEWAY_API_KEY="<ai gateway key>" \
-   BOOTSTRAP_ADMIN_EMAIL="yoonchristian2025@gmail.com" \
-   DIGEST_TO="<dad's email>" \
-   npm run seed
-   ```
-   (Embeddings need the AI key; without it nodes seed with null embeddings and Ask/news-linking are weaker.)
-2. **Email the brief.** When the Google security cooldown clears: enable 2-Step Verification on a Gmail
-   (any account — a fresh one works), generate an **App Password** (Google Account → Security → App
-   passwords), and set `GMAIL_USER` / `GMAIL_APP_PASSWORD` / `DIGEST_TO` in Vercel. No code change/redeploy
-   — the cron picks it up next run. Until then the brief composes + archives to `/brief` (status `archived`).
-3. **Let dad in.** Publish the Google **OAuth consent screen** to "In production" (safe — only basic
-   email/profile scopes, no verification needed) OR add dad's email as a **test user**. When he signs in,
-   approve him at **`/admin`**.
-4. **Verify the cron end-to-end** before trusting the schedule:
-   ```bash
-   curl -H "Authorization: Bearer <CRON_SECRET>" https://<your-app>.vercel.app/api/cron/daily
-   ```
-   Expect a JSON summary; check `/brief`. (First run is quietest — no prior snapshots to diff.)
+1. **Deploy the refactor** — the 4 steps above. This is the big one; nothing the branch built is live yet.
+2. **Let dad in.** Publish the Google **OAuth consent screen** ("In production" — basic email/profile scopes, no verification needed) OR add his email as a **test user**. When he signs in, approve him at **`/admin`**.
+3. **Email the brief.** Enable 2-Step Verification on a Gmail, generate an **App Password**, set `GMAIL_USER`/`GMAIL_APP_PASSWORD`/`DIGEST_TO` in Vercel. No code change — the cron picks it up. Until then the brief composes + archives to `/brief`.
+4. **Verify the cloud graph is seeded** after migrating (`select count(*) from public.nodes;`). Re-run `npm run seed` against cloud if empty (needs `AI_GATEWAY_API_KEY` for embeddings).
+5. **Smoke the cron end-to-end:** `curl -H "Authorization: Bearer <CRON_SECRET>" https://<app>.vercel.app/api/cron/daily` → JSON summary; check `/brief`. First run is quietest (no prior snapshots to diff).
 
-### Deferred stretch (not built — the plan's designated slip order)
-- **EDGAR filings step in the cron.** The `edgar` adapter + `MarketDeps.filings` exist and `gather.ts`
-  already reads `filing` nodes, but `daily.ts` does **not** call `market.filings` yet, so no filing nodes
-  are created. ~30 min to wire (`SEC_EDGAR_UA` is inert until then).
-- **Alerts** (`alert_rules`/`alert_events` tables exist; no evaluator/UI) and **thesis-judge**
-  (`confirms_thesis`/`challenges_thesis` edges). Both pure-logic additions.
+### Deferred (additive — node types + brief sections already exist; these just auto-populate them)
+- **FMP earnings/ratings → `catalyst` nodes** and **EDGAR filings → `filing` nodes**: the adapters exist and `liveMarketDeps` wires `earnings`/`ratings`/`filings`, but `runDailyForGraph` doesn't call them yet.
+- **LLM connection-finder** (+ a `graph_insights` table) to surface non-obvious multi-hop connections in the brief — the brief's "New connections" today is the simpler ≥2-holdings traversal.
+- **Full staged/resumable engine** (`engine_runs` cursor, time-budgeted stages) — current daily run is the single `runDailyForGraph` with per-step try/catch isolation, which is fine at 1×/day.
 
 ---
 
 ## Key decisions & gotchas (don't relearn these the hard way)
 
-- **GRANTs ≠ RLS.** Every new table needs explicit `grant` (+ `service_role` for cron-written tables) or
-  it 403s. pgvector RPCs need `set search_path = public, pg_catalog`.
-- **`edges.assertable` is a hardcoded literal list** (migration `0025`) — keep it identical to
-  `STRONG_RELATIONS` in `relations.ts` or no edge is ever assertable.
-- **Extraction stays `generateText` + `JSON.parse`.** `generateObject` returns `{}` for open frontmatter.
-- **Private companies (Anthropic, SpaceX) have no quote API** — every market call is guarded on `is_public`.
-- **One Vercel-Hobby cron/day** — the single `/api/cron/daily` does fetch + brief together; never split.
-- **Resend** (and every email provider) needs a verified domain to email arbitrary inboxes → we use
-  **Gmail SMTP + App Password** instead (no domain).
-- **AI Gateway needs PAID credits** (free tier blocks the latest Claude).
-- The cron isolates each graph + each ticker in try/catch (one failure can't abort the run). The brief
-  only renders http(s) URLs (XSS guard). `num()` returns null (not 0) for blank strings (no fabricated figures).
+- **`edges.assertable` is triple-sourced** — the SQL generated-column literal (latest `0032`), `STRONG_RELATIONS` (`relations.ts`), and `isAssertable()`. A drift silently fabricates or kills facts; the `relations.test.ts` sync-guard now fails the build on drift. Keep them byte-identical.
+- **`enforceFloor` is the anti-sycophancy guarantee** (`critic/calibration.ts`) — it's code, not prompt: a thesis can't be rated above what its *verified* evidence supports regardless of what the model says. Thesis edges stay WEAK so a verdict never looks like a tradeable fact.
+- **`tracked_entities.candidate_status` is the cost firewall** — discovered candidates are NOT price/news-fetched. Every reader of `tracked_entities` in the daily path must filter `candidate_status='active'` or candidates silently cost API calls.
+- **`writeNodeData` is the single node-mutation choke-point** — routes revision-snapshot + re-embed (only when embedded text changes). Use it for any node data/lifecycle write.
+- **Web research is SSRF-sensitive** — `isPublicHttpUrl` blocks raw IPv6 + private ranges and `getText` uses `redirect:"error"`. Don't loosen these; web content is untrusted.
+- **GRANTs ≠ RLS** — every new table needs explicit `grant` (+ `service_role` for cron/route-written) or it 403s.
+- **Generated-column migrations (`0032`/`0033`) rewrite the table** — cheap now, run early. **One Vercel-Hobby cron/day.** **AI Gateway needs PAID credits.** Private companies have no quote API (guard on `is_public`).
+- **`npm run db:types`** runs from `/tmp` on purpose (CLI 2.106 chokes on `config.toml`'s `env(OPENAI_API_KEY)`).
 
-## Verify the deploy is healthy (read-only)
-The migration history + schema were confirmed via `npx supabase db dump` (the Supabase Table-editor UI
-glitched during an outage and falsely showed "no tables" — the tables were always there). To re-check
-remote tables any time: Supabase SQL Editor → `select table_name from information_schema.tables where
-table_schema='public' order by 1;`.
+## Run / verify locally
+```bash
+npm install
+npm run db:start && npm run db:reset && npm run seed
+npm run dev            # http://localhost:3000
+npm test               # 110 unit
+npm run db:test:start && npm run db:test:reset && npm run test:integration   # 23, real test DB
+npm run e2e            # 6 (auth-gate + cron-routes; authenticated flows are manual-verify)
+```
