@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getAssets, getNeighbors, getNode, getRelated, type Neighbor } from "@/lib/graph";
 import { formatScalar, isEmptyValue, isRenderableRecord } from "@/lib/field-format";
 import { ThesisVerdict, type VerdictEvidence } from "@/components/thesis-verdict";
+import { NodeEditor, type EditableField, type RevisionView } from "@/components/node-editor";
 
 const isUrl = (v: unknown): v is string => typeof v === "string" && /^https?:\/\//.test(v);
 
@@ -79,6 +80,13 @@ export default async function NodePage({ params }: { params: Promise<{ id: strin
     getRelated(supabase, node),
     getAssets(supabase, id, graphId),
   ]);
+  const { data: revRows } = await supabase
+    .from("node_revisions")
+    .select("reason, changed_at")
+    .eq("graph_id", graphId)
+    .eq("node_id", id)
+    .order("changed_at", { ascending: false })
+    .limit(10);
 
   const data = (node.data ?? {}) as Record<string, unknown>;
   const body = typeof data.body === "string" ? data.body : "";
@@ -100,6 +108,14 @@ export default async function NodePage({ params }: { params: Promise<{ id: strin
   const judge = node.type === "thesis" && data.judge && typeof data.judge === "object" ? (data.judge as Record<string, unknown>) : null;
   const confirming = neighbors.incoming.filter((e) => e.type === "confirms_thesis").map(toEvidence);
   const challenging = neighbors.incoming.filter((e) => e.type === "challenges_thesis").map(toEvidence);
+
+  // Manual living-graph control: edit the prose fields + title, archive/restore, view history.
+  const EDITABLE = ["summary", "description", "statement", "body", "outcome", "current_reading", "mitigation", "transaction", "role"];
+  const editFields: EditableField[] = [
+    { field: "title", label: "title", value: node.title },
+    ...EDITABLE.filter((k) => typeof data[k] === "string").map((k) => ({ field: k, label: k, value: data[k] as string })),
+  ];
+  const revisions: RevisionView[] = (revRows ?? []).map((r) => ({ reason: r.reason, changedAt: r.changed_at }));
 
   return (
     <div className="p-6">
@@ -146,6 +162,8 @@ export default async function NodePage({ params }: { params: Promise<{ id: strin
       )}
 
       {body && <p className="mb-6 whitespace-pre-wrap text-sm text-foreground">{body}</p>}
+
+      <NodeEditor nodeId={node.id} lifecycle={node.lifecycle ?? "active"} fields={editFields} revisions={revisions} />
 
       {assets.length > 0 && (
         <div className="mb-6 flex flex-wrap gap-3">
