@@ -172,6 +172,17 @@ export const TIER_GUIDANCE = `PERMANENCE TIER — set \`_tier\` on every news, c
 - landmark (permanent): acquisitions, CEO/founder changes, regulatory rulings, bankruptcies — facts that define a company's history. e.g. "Acquired for $40B." -> landmark.
 WHEN UNSURE, choose the HIGHER tier (keep it longer). Never invent importance the text doesn't support.`;
 
+// Guidance for the optional `corrections` array. Fact-changes are RARE, so this fires only when the text
+// EXPLICITLY says a stored fact changed (a CEO left, a company renamed, guidance revised). It cites an
+// EXISTING entity by [[id]] + a verbatim evidence quote (substring-checked); the server confidence-gates
+// it before touching a core entity. Identity fields (name/ticker) are corrected via `rename`, not value.
+export const CORRECTIONS_GUIDANCE = `CORRECTIONS (optional, RARE) — also return a top-level \`corrections\` array, but ONLY when the text EXPLICITLY states that a fact about an EXISTING entity (one shown under EXISTING ENTITIES) has CHANGED. Each item:
+  {"target":"<existing [[id]]>","field":"<field>","old":"<prior value>","new":"<new value>","evidence":"<verbatim quote>","confidence":<0..1>,"kind":"value|rename|relation_expiry"}.
+  - kind "value": a narrative field changed (e.g. a company's \`description\`, a macro \`current_reading\`, revised guidance).
+  - kind "rename": an entity was renamed — set old=former name, new=current name (the engine keeps the old as an alias; it never blindly overwrites the canonical name).
+  - kind "relation_expiry": a role/relationship ended — e.g. "X is no longer CEO" -> target the person, field "role", new "former CEO".
+  - \`evidence\` MUST be a verbatim quote from the RAW NOTE; an unverified or paraphrased correction is discarded. Emit NOTHING here if no fact explicitly changed — do not guess.`;
+
 /** The static, cache-stable head of the extraction prompt: rules + per-type field spec + worked
  *  example + relations vocab. Byte-identical for every chunk in a run, so the live extractor marks it
  *  as an Anthropic ephemeral cache breakpoint. MUST NOT contain the raw chunk, retry errors, or the
@@ -222,6 +233,8 @@ For each note:
 
 ${TIER_GUIDANCE}
 
+${CORRECTIONS_GUIDANCE}
+
 Worked example — for input "Jensen Huang, NVIDIA's (NVDA) CEO, said TSMC's CoWoS capacity constrains
 H200 shipments. NVIDIA is the bellwether of the AI semiconductor theme.":
 {
@@ -246,7 +259,8 @@ is the point: the graph grows around what's discussed. NVIDIA's ticker "NVDA" wa
 TSMC's ticker was left empty because the text did not give one.
 
 Return JSON in exactly that shape: {"notes":[{type,id,title,frontmatter,body,tags}], "ambiguous":[...],
-"docNote":{"title":"...","summary":"...","tags":[...]}, "relations":[{subject,relation,object,evidence}]}.`;
+"docNote":{"title":"...","summary":"...","tags":[...]}, "relations":[{subject,relation,object,evidence}],
+"corrections":[]}.`;
 }
 
 /** An entity already in the graph that the model may link to. Rendered into the dynamic tail (never

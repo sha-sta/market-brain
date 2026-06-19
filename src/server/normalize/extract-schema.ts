@@ -34,6 +34,20 @@ export const relationSchema = z.object({
   evidence: z.string().default(""),
 });
 
+// A correction the extractor emits ONLY when the new text states that a fact on an EXISTING entity
+// changed (a CEO left, a rename, revised guidance). `target` cites the existing [[id]]; `evidence` is a
+// verbatim quote (substring-checked before any apply). The worker verifies + confidence-gates it: high
+// auto-applies through writeNodeData (reversible), mid queues for review, low/unverified is dropped.
+export const correctionSchema = z.object({
+  target: z.string(),
+  field: z.string().default(""),
+  old: z.string().default(""),
+  new: z.string(),
+  evidence: z.string().default(""),
+  confidence: z.coerce.number().min(0).max(1).catch(0),
+  kind: z.enum(["value", "rename", "relation_expiry"]).catch("value"),
+});
+
 /** An array that DROPS items failing the item schema (and falls back to [] when the whole value is
  *  missing or not an array) instead of rejecting the ENTIRE envelope. A real LLM occasionally emits
  *  one malformed note/relation in an otherwise-good response; without this, that single bad item
@@ -59,8 +73,11 @@ export const extractEnvelopeSchema = z.object({
   docNote: docNoteSchema.optional().catch(undefined),
   // Optional (stubs/sparse output omit it; the worker treats undefined as []); lenient when present.
   relations: lenientArray(relationSchema).optional(),
+  // Optional fact-corrections (rare); lenient so one malformed item never rejects the envelope.
+  corrections: lenientArray(correctionSchema).optional(),
 });
 
 export type RawNote = z.infer<typeof rawNoteSchema>;
 export type RawRelation = z.infer<typeof relationSchema>;
+export type RawCorrection = z.infer<typeof correctionSchema>;
 export type ExtractEnvelope = z.infer<typeof extractEnvelopeSchema>;

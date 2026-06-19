@@ -44,6 +44,8 @@ const company = z.object({
   website: optStr,
   description: optStr,
   links: def(z.record(z.string(), z.string()), {}),
+  former_name: optStr, // set by fact reconciliation on a rename (name itself is never overwritten)
+  aliases: strList(), // prior/alternate names kept for matching (append-only provenance)
 });
 
 const person = z.object({
@@ -52,6 +54,8 @@ const person = z.object({
   company: optStr, // [[company-id]]
   status: def(z.string(), "mentioned"),
   links: def(z.record(z.string(), z.string()), {}),
+  former_name: optStr, // set by fact reconciliation on a rename
+  aliases: strList(),
 });
 
 const sector = z.object({

@@ -154,6 +154,66 @@ export type Database = {
           },
         ]
       }
+      correction_queue: {
+        Row: {
+          confidence: number
+          created_at: string
+          evidence: string | null
+          field: string
+          graph_id: string
+          id: string
+          kind: string
+          new_value: string
+          node_id: string
+          old_value: string | null
+          source_upload_id: string | null
+          status: string
+        }
+        Insert: {
+          confidence: number
+          created_at?: string
+          evidence?: string | null
+          field: string
+          graph_id: string
+          id?: string
+          kind?: string
+          new_value: string
+          node_id: string
+          old_value?: string | null
+          source_upload_id?: string | null
+          status?: string
+        }
+        Update: {
+          confidence?: number
+          created_at?: string
+          evidence?: string | null
+          field?: string
+          graph_id?: string
+          id?: string
+          kind?: string
+          new_value?: string
+          node_id?: string
+          old_value?: string | null
+          source_upload_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "correction_queue_graph_id_node_id_fkey"
+            columns: ["graph_id", "node_id"]
+            isOneToOne: false
+            referencedRelation: "nodes"
+            referencedColumns: ["graph_id", "id"]
+          },
+          {
+            foreignKeyName: "correction_queue_source_upload_id_fkey"
+            columns: ["source_upload_id"]
+            isOneToOne: false
+            referencedRelation: "raw_uploads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       digest_log: {
         Row: {
           created_at: string
