@@ -5,11 +5,11 @@ import Link from "next/link";
 // component — pure render of the persisted data.judge block + the thesis's confirm/challenge edges.
 
 const STRENGTH_COLOR: Record<string, string> = {
-  unsupported: "#a32f2f",
-  weak: "#a32f2f",
-  contested: "#b8860b",
-  supported: "#1a7f4b",
-  "well-supported": "#1a7f4b",
+  unsupported: "#e5685f",
+  weak: "#e5685f",
+  contested: "#d9a441",
+  supported: "#3fb27f",
+  "well-supported": "#3fb27f",
 };
 
 export interface VerdictEvidence {
@@ -48,7 +48,7 @@ function EvidenceList({ label, items }: { label: string; items: VerdictEvidence[
 }
 
 export function ThesisVerdict(props: ThesisVerdictProps) {
-  const color = STRENGTH_COLOR[props.strength] ?? "#6b675f";
+  const color = STRENGTH_COLOR[props.strength] ?? "var(--muted)";
   return (
     <section className="mb-6 rounded border border-border p-4">
       <div className="mb-2 flex flex-wrap items-center gap-2">

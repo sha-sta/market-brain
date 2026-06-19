@@ -58,7 +58,7 @@ export function GraphShell({ initialData, graphId }: { initialData: GraphData; g
       {graph.nodes.length === 0 ? (
         <div className="flex h-full w-full items-center justify-center p-8 text-center">
           <p className="max-w-xs text-sm text-muted">
-            Your graph is empty. Head to <span className="text-foreground">Dump</span> and drop a note — it will
+            Your graph is empty. Head to <span className="text-foreground">Dump</span> and drop a note and it will
             normalize and appear here.
           </p>
         </div>
@@ -78,7 +78,7 @@ export function GraphShell({ initialData, graphId }: { initialData: GraphData; g
       )}
 
       {hover && (
-        <div className="pointer-events-none absolute left-4 top-4 max-w-xs rounded-md border border-border bg-background/95 px-3 py-2 text-xs shadow-sm">
+        <div className="pointer-events-none absolute left-4 top-4 max-w-xs rounded-md border border-border bg-surface/95 px-3 py-2 text-xs shadow-sm">
           <div className="font-medium text-foreground">{hover.title}</div>
           <div className="text-muted">{hover.type}</div>
           {hover.tags.length > 0 && <div className="mt-1 text-muted">{hover.tags.join(" · ")}</div>}
@@ -86,7 +86,7 @@ export function GraphShell({ initialData, graphId }: { initialData: GraphData; g
       )}
 
       {linkHover && !hover && (
-        <div className="pointer-events-none absolute left-4 top-4 max-w-xs rounded-md border border-border bg-background/95 px-3 py-2 text-xs shadow-sm">
+        <div className="pointer-events-none absolute left-4 top-4 max-w-xs rounded-md border border-border bg-surface/95 px-3 py-2 text-xs shadow-sm">
           <div className="font-medium text-foreground">
             {linkHover.relations.length > 1 ? linkHover.relations.join(" · ") : linkHover.relationType}
           </div>
@@ -98,7 +98,7 @@ export function GraphShell({ initialData, graphId }: { initialData: GraphData; g
       )}
 
       {graph.capped && (
-        <div className="pointer-events-none absolute bottom-3 right-3 rounded-md border border-border bg-background/90 px-2 py-1 text-xs text-muted">
+        <div className="pointer-events-none absolute bottom-3 right-3 rounded-md border border-border bg-surface/90 px-2 py-1 text-xs text-muted">
           showing {graph.nodes.length} of {graph.total}
         </div>
       )}

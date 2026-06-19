@@ -33,7 +33,7 @@ export default async function AdminPage() {
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-8">
       <h1 className="mb-1 text-2xl font-semibold">Access requests</h1>
-      <p className="mb-6 text-sm text-muted">Approve people you want in this graph. When dad signs in, he'll appear here.</p>
+      <p className="mb-6 text-sm text-muted">Approve people you want in this graph. When Appa signs in, he'll appear here.</p>
 
       {!pending?.length ? (
         <p className="mb-8 text-sm text-muted">No pending requests.</p>

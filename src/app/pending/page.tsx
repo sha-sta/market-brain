@@ -28,7 +28,7 @@ export default async function PendingPage() {
       </p>
       <p className="text-xs text-muted">{user.email}</p>
       <form action={signOut}>
-        <button className="rounded-md border border-border px-4 py-2 text-sm hover:bg-gray-50">
+        <button className="rounded-md border border-border px-4 py-2 text-sm hover:bg-foreground/[0.06]">
           Sign out
         </button>
       </form>

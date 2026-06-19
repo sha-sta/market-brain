@@ -40,14 +40,14 @@ export async function followEntity(formData: FormData): Promise<void> {
 
   const nodeId = await resolveNode(supabase, graphId, name);
   if (!nodeId) {
-    throw new Error(`No "${name}" in your graph yet — dump a note about it or run a research request to add it.`);
+    throw new Error(`No "${name}" in your graph yet. Dump a note about it or run a research request to add it.`);
   }
   const { error } = await supabase
     .from("tracked_entities")
     .upsert({ graph_id: graphId, node_id: nodeId, kind, source: "manual", candidate_status: "active" }, { onConflict: "graph_id,node_id" });
   if (error) {
     reportError(error, { scope: "followEntity" }); // log details server-side; don't leak schema to the client
-    throw new Error("Couldn't follow that — please try again.");
+    throw new Error("Couldn't follow that. Please try again.");
   }
   revalidatePath("/follow");
 }
@@ -61,7 +61,7 @@ export async function unfollowEntity(formData: FormData): Promise<void> {
   const { error } = await supabase.from("tracked_entities").delete().eq("graph_id", graphId).eq("node_id", nodeId);
   if (error) {
     reportError(error, { scope: "unfollowEntity" });
-    throw new Error("Couldn't unfollow that — please try again.");
+    throw new Error("Couldn't unfollow that. Please try again.");
   }
   revalidatePath("/follow");
 }
@@ -82,7 +82,7 @@ export async function setKind(formData: FormData): Promise<void> {
     .eq("node_id", nodeId);
   if (error) {
     reportError(error, { scope: "setKind" });
-    throw new Error("Couldn't update — please try again.");
+    throw new Error("Couldn't update. Please try again.");
   }
   revalidatePath("/follow");
 }

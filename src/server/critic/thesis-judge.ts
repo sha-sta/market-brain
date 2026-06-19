@@ -68,7 +68,7 @@ export async function judgeThesis(
 
   // The model cannot rate higher than the VERIFIED evidence justifies.
   const strength = enforceFloor(normalizeStrength(out.strength), confirming, challenging);
-  const bearCase = out.bear_case.trim() || "No disconfirming evidence found in the graph — treat as unproven, not strong.";
+  const bearCase = out.bear_case.trim() || "No disconfirming evidence found in the graph; treat as unproven, not strong.";
   const nowIso = new Date(deps.nowMs ?? Date.now()).toISOString();
 
   const newData: Record<string, unknown> = {

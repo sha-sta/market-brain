@@ -16,7 +16,7 @@ export function GraphPanel({ initialData, graphId }: { initialData: GraphData; g
         <div
           aria-hidden
           onClick={close}
-          className="fixed inset-0 top-14 z-30 bg-black/20 lg:hidden"
+          className="fixed inset-0 top-14 z-30 bg-black/50 lg:hidden"
         />
       )}
       <div

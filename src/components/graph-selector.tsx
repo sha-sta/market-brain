@@ -62,7 +62,7 @@ export function GraphSelector({ graphs, currentId }: { graphs: GraphOption[]; cu
         aria-expanded={open}
         disabled={pending}
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-sm text-foreground transition-colors hover:bg-gray-50 disabled:opacity-50"
+        className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-sm text-foreground transition-colors hover:bg-foreground/[0.06] disabled:opacity-50"
       >
         <span className="max-w-[12rem] truncate">{currentName}</span>
         <span className="text-xs text-muted">▾</span>
@@ -72,7 +72,7 @@ export function GraphSelector({ graphs, currentId }: { graphs: GraphOption[]; cu
         <>
           {/* click-away */}
           <div aria-hidden className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-9 z-50 flex w-64 flex-col gap-0.5 rounded-md border border-border bg-background p-1.5 text-sm shadow-lg">
+          <div className="absolute left-0 top-9 z-50 flex w-64 flex-col gap-0.5 rounded-md border border-border bg-surface p-1.5 text-sm shadow-lg">
             <div className="px-2 pb-1 pt-0.5 text-xs font-semibold uppercase tracking-wide text-muted">Graphs</div>
             {graphs.map((g) =>
               renaming === g.id ? (
@@ -83,7 +83,7 @@ export function GraphSelector({ graphs, currentId }: { graphs: GraphOption[]; cu
                     type="button"
                     disabled={pending}
                     onClick={() => switchTo(g.id)}
-                    className={`flex flex-1 items-center justify-between rounded-md px-2 py-1.5 text-left transition-colors hover:bg-gray-50 disabled:opacity-50 ${
+                    className={`flex flex-1 items-center justify-between rounded-md px-2 py-1.5 text-left transition-colors hover:bg-foreground/[0.06] disabled:opacity-50 ${
                       g.id === currentId ? "text-foreground" : "text-muted"
                     }`}
                   >
@@ -94,7 +94,7 @@ export function GraphSelector({ graphs, currentId }: { graphs: GraphOption[]; cu
                     type="button"
                     aria-label={`Rename ${g.name}`}
                     onClick={() => setRenaming(g.id)}
-                    className="rounded-md px-1.5 py-1 text-xs text-muted transition-colors hover:bg-gray-50 hover:text-foreground"
+                    className="rounded-md px-1.5 py-1 text-xs text-muted transition-colors hover:bg-foreground/[0.06] hover:text-foreground"
                   >
                     edit
                   </button>
@@ -110,7 +110,7 @@ export function GraphSelector({ graphs, currentId }: { graphs: GraphOption[]; cu
                   type="button"
                   disabled={pending}
                   onClick={() => setCreating(true)}
-                  className="w-full rounded-md px-2 py-1.5 text-left text-muted transition-colors hover:bg-gray-50 hover:text-foreground disabled:opacity-50"
+                  className="w-full rounded-md px-2 py-1.5 text-left text-muted transition-colors hover:bg-foreground/[0.06] hover:text-foreground disabled:opacity-50"
                 >
                   + New graph
                 </button>

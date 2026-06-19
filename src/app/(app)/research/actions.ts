@@ -46,7 +46,7 @@ export async function submitResearch(formData: FormData): Promise<SubmitResult> 
     .single();
   if (ins.error) {
     reportError(ins.error, { scope: "submitResearch" });
-    return { ok: false, message: "Couldn't queue that — please try again." };
+    return { ok: false, message: "Couldn't queue that. Please try again." };
   }
   return { ok: true, jobId: ins.data.id, remaining: Math.max(0, quota - used - 1) };
 }

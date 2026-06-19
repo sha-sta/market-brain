@@ -31,7 +31,7 @@ export async function summarizeBrief(data: BriefData): Promise<string> {
     .filter(Boolean)
     .join("\n");
 
-  if (!facts) return "A quiet morning — nothing material moved on the names you follow.";
+  if (!facts) return "A quiet morning. Nothing material moved on the names you follow.";
 
   const result = await generateText({
     model: SONNET,

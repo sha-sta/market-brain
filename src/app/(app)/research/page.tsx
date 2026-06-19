@@ -30,7 +30,7 @@ export default async function ResearchPage() {
       <h1 className="mb-1 text-2xl font-semibold">Research</h1>
       <p className="mb-6 text-sm text-muted">
         Ask the brain to dig into a name, industry, or connection. It searches the web, folds what it finds
-        into your graph, and writes back a sourced read with the bear case — it never recommends a trade.
+        into your graph, and writes back a sourced read with the bear case. It never recommends a trade.
       </p>
       <ResearchBox initial={initial} />
     </div>
