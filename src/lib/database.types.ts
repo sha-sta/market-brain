@@ -340,18 +340,21 @@ export type Database = {
           created_at: string
           created_by: string | null
           id: string
+          last_gap_fill_at: string | null
           name: string
         }
         Insert: {
           created_at?: string
           created_by?: string | null
           id?: string
+          last_gap_fill_at?: string | null
           name: string
         }
         Update: {
           created_at?: string
           created_by?: string | null
           id?: string
+          last_gap_fill_at?: string | null
           name?: string
         }
         Relationships: [

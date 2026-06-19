@@ -8,6 +8,7 @@ import { upsertEdge, writeNodeData } from "@/server/normalize/upsert";
 import { archiveCutoffMs, asOfFromData } from "@/server/normalize/lifecycle";
 import { judgeTheses, type Judge } from "@/server/critic/thesis-judge";
 import { reconcileThesisSupersede } from "@/server/critic/thesis-supersede";
+import { gapFillStructure } from "./gap-fill";
 import { CONFIDENCE_WEAK } from "@/server/normalize/relations";
 import { canonicalizeUrl, normTicker } from "@/server/normalize/dedupe";
 import { reportError } from "@/lib/observability";
@@ -53,6 +54,7 @@ export interface DailySummary {
   thesesJudged: number;
   thesesSuperseded: number; // freshly-added theses that auto-replaced a prior near-restatement
   discovered: number;
+  gapsFilled: number; // tracked companies grounded by the (weekly) structural gap-fill pass
 }
 
 interface CompanyRow {
@@ -394,6 +396,15 @@ export async function runDailyForGraph(supabase: Client, graphId: string, deps: 
     reportError(e, { scope: "runDailyForGraph.detectConnections", graph: graphId });
   }
 
+  // Add what's MISSING (not more news): once a week, ground essential identity facts on tracked companies
+  // via the finance enricher (no LLM). Bounded + deadline-guarded so it never threatens the digest budget.
+  let gapsFilled = 0;
+  try {
+    gapsFilled = (await gapFillStructure(supabase, graphId, { nowMs: deps.nowMs, enrich: deps.worker.enrichEntities, deadlineMs: deps.deadlineMs })).filled;
+  } catch (e) {
+    reportError(e, { scope: "runDailyForGraph.gapFill", graph: graphId });
+  }
+
   // Strict thesis-judge over the freshest evidence (bounded Sonnet cost). Only when a judge is wired.
   let thesesJudged = 0;
   if (deps.judge) {
@@ -432,5 +443,6 @@ export async function runDailyForGraph(supabase: Client, graphId: string, deps: 
     thesesJudged,
     thesesSuperseded,
     discovered,
+    gapsFilled,
   };
 }
