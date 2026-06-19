@@ -66,6 +66,7 @@ const FIELD_SPECS: Record<NodeType, FieldSpec[]> = {
     { name: "sentiment", kind: "str", enum: ["bullish", "bearish", "neutral"] },
     { name: "materiality", kind: "str", enum: ["high", "med", "low"] },
     { name: "tickers", kind: "list" }, // raw ticker strings, verbatim
+    { name: "_tier", kind: "str", enum: ["ephemeral", "routine", "notable", "landmark"] }, // permanence (see PERMANENCE TIER)
   ],
   filing: [
     { name: "form_type", kind: "str" },
@@ -91,6 +92,7 @@ const FIELD_SPECS: Record<NodeType, FieldSpec[]> = {
     { name: "about", kind: "list", link: true },
     { name: "importance", kind: "str", enum: ["high", "med", "low"] },
     { name: "outcome", kind: "str" },
+    { name: "_tier", kind: "str", enum: ["ephemeral", "routine", "notable", "landmark"] }, // permanence (see PERMANENCE TIER)
   ],
   macro_factor: [
     { name: "name", kind: "str", required: true },
@@ -136,6 +138,7 @@ const FIELD_SPECS: Record<NodeType, FieldSpec[]> = {
     { name: "observed_at", kind: "str" },
     { name: "about", kind: "list", link: true },
     { name: "supersedes", kind: "str", link: true },
+    { name: "_tier", kind: "str", enum: ["ephemeral", "routine", "notable", "landmark"] }, // permanence (see PERMANENCE TIER)
   ],
   // `note` nodes are built by the worker (one per dumped doc), never emitted by the extractor —
   // buildTypeSpec excludes this type from the prompt. The empty spec satisfies the exhaustive Record.
@@ -157,6 +160,17 @@ export function buildTypeSpec(): string {
     .map((t) => `- ${t}: ${FIELD_SPECS[t].map(renderField).join("; ")}`)
     .join("\n");
 }
+
+// Guidance for the `_tier` permanence field on news/catalyst/signal. Each tier is tied to its REAL
+// time-scale + a worked example so the model assigns it deliberately; the closing rule biases toward
+// keeping a node LONGER when unsure, so the downstream hard-delete never over-prunes. Lives in the
+// cache-stable prefix (identical every chunk).
+export const TIER_GUIDANCE = `PERMANENCE TIER — set \`_tier\` on every news, catalyst, and signal note (how long it stays relevant):
+- ephemeral (days): single-day price moves, routine intraday chatter, a one-off daily analyst note. e.g. "Stock dips 2% on light volume." -> ephemeral.
+- routine (weeks): normal earnings prints, scheduled product launches, ordinary guidance updates. e.g. "Q3 revenue beat by 3%." -> routine.
+- notable (months): sector-shifting developments, major contract wins, meaningful strategy changes. e.g. "Lands a multi-year cloud contract that reshapes its revenue mix." -> notable.
+- landmark (permanent): acquisitions, CEO/founder changes, regulatory rulings, bankruptcies — facts that define a company's history. e.g. "Acquired for $40B." -> landmark.
+WHEN UNSURE, choose the HIGHER tier (keep it longer). Never invent importance the text doesn't support.`;
 
 /** The static, cache-stable head of the extraction prompt: rules + per-type field spec + worked
  *  example + relations vocab. Byte-identical for every chunk in a run, so the live extractor marks it
@@ -205,6 +219,8 @@ For each note:
     Never paraphrase, never invent — unsupported STRONG claims are discarded.
   - Evidence is checked by EXACT substring match. A paraphrase FAILS the check and the STRONG claim is
     DOWNGRADED to a weak association. Copy the note's wording exactly.
+
+${TIER_GUIDANCE}
 
 Worked example — for input "Jensen Huang, NVIDIA's (NVDA) CEO, said TSMC's CoWoS capacity constrains
 H200 shipments. NVIDIA is the bellwether of the AI semiconductor theme.":
