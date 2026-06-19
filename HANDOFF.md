@@ -1,4 +1,4 @@
-# MarketBrain — handoff: graph-growth optimization + the 300s cron timeout
+# MarketBrain — handoff: graph lifecycle overhaul (lean growth, decay/delete, thesis & fact lifecycle) + the 300s cron timeout
 
 _Last updated: 2026-06-19. `main` is deployed to prod. Durable project invariants (deploy model,
 Supabase, hard constraints, UI, email, how-to-run) now live in **`CLAUDE.md`** — read that first; this
@@ -6,6 +6,16 @@ doc is ONLY the next build task + current open issues. The full phase-by-phase r
 git (it's not repeated here)._
 
 > **Feed this doc into a fresh session to produce a comprehensive implementation plan, then build it.**
+
+**Scope (one umbrella — "keep the graph lean, current, and his"). The planning session should sequence
+these; they share the daily-run + lifecycle code so plan them together:**
+1. **Add less daily** — ingest caps + materiality gate + a structural gap-fill pass (vs piling on news).
+2. **Tiered decay + HARD-DELETE** — importance tiers scale retention (incl. a landmark/never tier); a
+   short floor; actually delete decayed chronological nodes (free-plan DB), reference-aware.
+3. **Thesis lifecycle** — never time-decay; replace via `superseded_by`; a `/theses` tab + add-thesis form.
+4. **Fact reconciliation** — correct permanent nodes when facts change (rename, CEO→ex-CEO), cost-scoped.
+5. **300s timeout** — the above bound the work; also reorder/​time-box so the digest always sends.
+The decay audit + the archive-still-referenced bug are context running through all of these.
 
 ---
 
@@ -106,8 +116,9 @@ in a `service_role` SQL function like `prune_snapshots`, called from the daily r
 the extractor already emits it. Generalize this:
 - Add a top **"landmark / permanent"** tier (never auto-archive/delete) for rare, durable, market-
   defining events — the user's example: "SpaceX acquires Cursor for $60B" must NOT be forgotten, vs a
-  routine price-blip article that should decay in days. So the levels become e.g.
-  `ephemeral (~7d) → routine (~30d) → notable (~180d) → landmark (never)`.
+  routine price-blip article that should decay in days. **The current 45d floor is TOO LONG** — the
+  bottom tier should be short (truly irrelevant/noise news goes in days). So the levels become e.g.
+  `ephemeral (~2-3d) → routine (~21-30d) → notable (~180d) → landmark (never)` — tune these.
 - Teach the **extractor prompt** (`server/normalize/prompt.ts`) + the enum (`schemas.ts`) to assign the
   tier deliberately (it currently judges `materiality` already), with explicit guidance + examples for
   the landmark tier so it's used sparingly.
@@ -121,10 +132,72 @@ the extractor already emits it. Generalize this:
 - **signal** — dated `observed_at` and explicitly designed to SUPERSEDE prior readings → a superseded /
   stale signal is the soonest delete candidate.
 - **filing** — by `form_type` (a 10-K/10-Q stays relevant ~a year+, an 8-K/Form-4 far less).
+- **note** — notes go stale too, and they're MIXED (factual + opinion). Give a note a tier as well so it
+  decays (an LLM-assigned tier at ingest, same vocabulary). **Prefer the tier→window approach over a
+  brittle absolute LLM "delete-by date"** (an absolute future date the model guesses is error-prone);
+  the tier maps to a window like everything else. A note can also be **superseded by a newer note that
+  conflicts with it** (see the conflict-supersede note in Thesis lifecycle) — but because notes carry
+  FACTS, auto-deleting on a model-judged "conflict" is risky (a false positive silently drops good
+  info), so gate that behind high precision or user confirmation, not silent auto-delete.
 - **Structural types keep forever** (no time-decay): company, person, sector, theme, product, commodity,
-  organization, thesis, macro_factor, risk, note. (risk/macro_factor are persistent context.)
+  organization, macro_factor, risk. (risk/macro_factor are persistent context.)
+- **thesis** — does NOT time-decay; it's replaced/removed, not aged out. See the next subsection.
 Note `risk.severity/likelihood` and `thesis.conviction` enums already exist — reuse the same tiering
-vocabulary for consistency, even though those types don't time-decay.
+vocabulary for consistency.
+
+### Thesis lifecycle & management (related workstream — theses are replaced, never time-decayed)
+Theses are the user's standing OPINIONS — purely opinionated (notes are mixed fact+opinion). They
+shouldn't vanish because time passed; they should be **revised/replaced** when he forms a new view, and
+challenged by evidence (the thesis-judge already does the latter via `confirms_thesis`/`challenges_thesis`
+edges + `enforceFloor`). Design:
+- **Never time-decay a thesis.** Removal is (a) manual, or (b) **superseded by a new/conflicting thesis**.
+- **Reuse the dormant `superseded_by` machinery for replacement** — migration `0034` already defines
+  `lifecycle='superseded'` + `superseded_by` (a same-graph soft pointer) but NO code path writes it
+  today. "Replace thesis A with thesis B" is its natural first use: mark A `superseded`, point
+  `superseded_by → B`. Lean toward **user-confirmed** replacement ("does this replace your earlier
+  thesis on X?") rather than silent auto-supersede, since these are his opinions.
+- **Add a `/theses` tab** (nav slots alongside Following/Ask): list his theses with the judge's
+  strength/verdict (reuse `components/thesis-verdict.tsx`) and let him **manually archive/remove** old
+  ones (reuse the existing `node/[id]/actions.ts` archive/restore actions). This is the easy, safe win —
+  theses + notes are his only opinionated nodes, and theses are the purely-opinionated ones worth a
+  dedicated management surface.
+- **Add-a-thesis form** that creates a single thesis node AND auto-connects it like every other node.
+  **Implement by piping the thesis text through the EXISTING dump/normalize pipeline** (`uploadText` →
+  `raw_uploads` → `drainPending`), NOT a parallel path — the extractor already produces a `thesis` node
+  + links + embedding from prose, so a focused "write a thesis" entry point just feeds that same path
+  (consistent with "a news article is just a raw_uploads row"). This **keeps dump-based thesis
+  extraction intact** automatically (same code path).
+
+### Fact reconciliation — update/replace stale facts on PERMANENT nodes (cross-node correction)
+Distinct from time-decay: when reality changes (a company RENAMES, a CEO becomes ex-CEO, a product is
+discontinued), the relevant **structural/permanent** node is wrong and should be CORRECTED in place, not
+deleted. Today's supersede only overwrites narrative fields WITHIN one node during a same-entity merge
+(`decideSupersede`, dated newer) — there is no cross-node fact-correction. Build it, but **cost-scoped**.
+
+**Cost verdict (the user asked):** a naive "semantic-search every new node → LLM cross-reference every
+candidate pair, daily" is **too expensive AND worsens the 300s timeout** (an extra LLM call per new node
+on top of drain+judge). Make it cheap by scoping — real fact-changes are RARE:
+- **Piggyback on the extraction LLM that already runs.** The extractor prompt ALREADY injects nearby
+  existing entities (`renderExistingEntities`/`buildDynamicTail` in `prompt.ts`) so the model can link.
+  Extend that pass to ALSO emit, when the new text contradicts/updates an existing entity, a small
+  structured flag: `{ corrects: "[[entity-id]]", field, old, new, evidence }`. **No extra call** — it's
+  in the output the extractor already produces.
+- **Embedding similarity (no LLM) finds candidates;** escalate to an LLM ONLY for the rare flagged case.
+- **Scope to permanent types** (company/person/product/organization/sector) — skip news/note/etc.
+- Apply the correction through **`writeNodeData`** so every correction snapshots a `node_revisions` row
+  (auditable + reversible) — never a raw `update`.
+
+**Two real subtleties to handle (don't let the plan miss these):**
+- **Company rename:** `name` is an `IDENTITY_FIELD` (`lifecycle.ts`) deliberately NEVER superseded —
+  overwriting it breaks the dedupe hard-key (future articles using the new name won't match the node).
+  So a rename must **add an alias / `former_name`** (and keep the old as a search alias) or re-key
+  carefully, NOT blind-overwrite. Treat rename as its own case.
+- **Role/relationship change (CEO → ex-CEO):** update the person's `role` (narrative, already
+  superseable) AND retire/qualify the `insider_of`/`founded_by` EDGE — but edges have no lifecycle
+  column today, so decide how to "expire" an edge (delete it, or add a qualifier/validity).
+- **Safety:** auto-correcting permanent nodes is high-stakes (a false positive corrupts a core entity).
+  Because it goes through `writeNodeData` it's reversible via revision history, but consider a
+  confidence bar / log / confirmation, especially for identity-ish changes.
 
 ### Open design questions for the plan to resolve
 - Gap-fill heuristic: which fields/edges are "essential" per node type, and how to detect-cheaply.
@@ -133,6 +206,14 @@ vocabulary for consistency, even though those types don't time-decay.
 - Reference-guard for deletion: never delete a node cited by an active thesis or linked to an active
   tracked entity — define precisely (which edge types / lifecycle states protect a node from prune).
 - Soft-hide grace before hard delete, or delete directly? (recoverability vs DB space.)
+- Note staleness: tier→window (recommended) vs absolute LLM "delete-by date"; and whether/how a newer
+  note may supersede a conflicting older one (conflict detection = embedding similarity + an LLM
+  contradiction check — what precision bar, and confirm-vs-auto, given notes carry facts).
+- Thesis replacement: user-confirmed supersede vs auto on a new conflicting thesis; the UX for "this
+  replaces thesis X". Where `/theses` slots in the nav.
+- Fact reconciliation: the flag schema the extractor emits; the confidence bar for auto-applying a
+  correction; company-rename handling (alias/`former_name` vs re-key); how to expire a stale edge
+  (CEO→ex-CEO) given edges have no lifecycle column.
 - Reorder digest-before-judge vs time-box the judge — which best guarantees the email sends.
 - Does research need the same caps + tiering on what it drains in?
 
