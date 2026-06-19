@@ -24,7 +24,7 @@ export default async function HomePage() {
 
       <div>
         <h1 className="text-2xl font-medium tracking-tight">MarketBrain</h1>
-        <p className="mt-1 text-sm text-muted">
+        <p className="mt-1 font-mono text-xs uppercase tracking-wide tabular-nums text-muted">
           {nodeCount ?? 0} nodes · {edgeCount ?? 0} links
         </p>
       </div>
@@ -47,7 +47,7 @@ export default async function HomePage() {
           {TYPES.map((t) => (
             <li
               key={t}
-              className="flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-xs text-muted"
+              className="flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 font-mono text-xs uppercase tracking-wide text-muted"
             >
               <span
                 aria-hidden

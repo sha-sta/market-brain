@@ -30,7 +30,7 @@ export function FatherDayHero() {
   };
 
   return (
-    <div className="relative rounded-lg border border-border bg-[#f4f1ea] px-4 py-3">
+    <div className="relative rounded-lg border border-border bg-surface px-4 py-3">
       <button
         type="button"
         aria-label="Dismiss"
@@ -39,12 +39,13 @@ export function FatherDayHero() {
       >
         Dismiss
       </button>
-      <p className="text-sm font-medium text-foreground">Happy Father&apos;s Day, Dad.</p>
-      <p className="mt-1 text-sm leading-relaxed text-muted">
-        This is a knowledge graph that grows around the companies, themes, and theses you follow —
-        your holdings, your own notes, and the news on your names, all connected. Each morning it sends
-        a brief on what changed. It surfaces and organizes; the calls are always yours.
+      <p className="text-base font-medium text-foreground">Happy Father&apos;s Day, Appa.</p>
+      <p className="mt-1.5 text-sm leading-relaxed text-muted">
+        Instead of a card this year, I wanted to build you something you can actually use. It keeps
+        track of the companies and themes you follow, watches the news on them, and sends you a short
+        brief each morning on what changed.
       </p>
+      <p className="mt-2 text-sm text-muted">Love, Christian</p>
     </div>
   );
 }

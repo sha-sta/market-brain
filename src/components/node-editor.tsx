@@ -60,7 +60,7 @@ export function NodeEditor({
             <ul className="mt-1 flex flex-col gap-0.5 text-xs text-muted">
               {revisions.map((r, i) => (
                 <li key={i}>
-                  {r.changedAt.slice(0, 10)} — {r.reason}
+                  {r.changedAt.slice(0, 10)} · {r.reason}
                 </li>
               ))}
             </ul>

@@ -61,18 +61,18 @@ export function AskBox() {
         <button
           type="submit"
           disabled={loading || !question.trim()}
-          className="rounded-md border border-border px-3 py-2 text-sm hover:bg-gray-50 disabled:opacity-50"
+          className="rounded-md border border-border px-3 py-2 text-sm hover:bg-foreground/[0.06] disabled:opacity-50"
         >
           {loading ? "Thinking…" : "Ask"}
         </button>
       </form>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
       {answer && (
         <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
           {segmentAnswer(answer, validIds).map((s, i) =>
             s.kind === "cite" ? (
-              <Link key={i} href={`/node/${s.id}`} className="text-blue-600 hover:underline">
+              <Link key={i} href={`/node/${s.id}`} className="text-foreground underline decoration-border underline-offset-2 hover:decoration-foreground">
                 {s.title}
               </Link>
             ) : (

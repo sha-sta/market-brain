@@ -62,7 +62,7 @@ export interface ComposedBrief {
 }
 
 const FOOTER =
-  "MarketBrain aggregates and surfaces what changed on the names you follow. It never recommends buying or selling — you form your own view.";
+  "MarketBrain aggregates and surfaces what changed on the names you follow. It never recommends buying or selling; you form your own view.";
 
 function esc(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -83,7 +83,7 @@ function safeHref(url: string | null | undefined): string | null {
 }
 
 function pct(n: number | null): string {
-  if (n === null || !Number.isFinite(n)) return "—";
+  if (n === null || !Number.isFinite(n)) return "n/a";
   const sign = n > 0 ? "+" : "";
   return `${sign}${n.toFixed(2)}%`;
 }
@@ -153,7 +153,7 @@ function thesisChecksHtml(checks: ThesisCheck[]): string {
       const badge = `<span style="color:${color};font-weight:600">${esc(c.strength)}</span>`;
       const counts = `<span style="color:#6b675f">(${c.confirming} for / ${c.challenging} against)</span>`;
       const bear = c.bearCase ? `<br><span style="color:#6b675f;font-size:13px">Bear case: ${esc(c.bearCase)}</span>` : "";
-      return `<li style="margin-bottom:8px"><strong>${esc(c.title)}</strong> — ${badge} ${counts}${bear}</li>`;
+      return `<li style="margin-bottom:8px"><strong>${esc(c.title)}</strong> · ${badge} ${counts}${bear}</li>`;
     })
     .join("");
   return `<h3 style="margin:18px 0 6px">Thesis check-ins</h3><ul style="margin:0;padding-left:18px">${rows}</ul>`;
@@ -163,7 +163,7 @@ function filingsHtml(filings: FilingItem[]): string {
   if (filings.length === 0) return "";
   const rows = filings
     .map((f) => {
-      const label = `${esc(f.formType)}${f.company ? ` — ${esc(f.company)}` : ""}`;
+      const label = `${esc(f.formType)}${f.company ? ` · ${esc(f.company)}` : ""}`;
       const href = safeHref(f.url);
       return `<li>${href ? `<a href="${esc(href)}" style="color:#1c1b19">${label}</a>` : label}</li>`;
     })
@@ -202,7 +202,7 @@ export async function composeBrief(data: BriefData, deps: ComposeDeps = {}): Pro
   }
   if (!intro) {
     intro = empty
-      ? `<p style="margin:0 0 10px">A quiet morning — nothing material moved on the names you follow. The graph is watching.</p>`
+      ? `<p style="margin:0 0 10px">A quiet morning. Nothing material moved on the names you follow. The graph is watching.</p>`
       : `<p style="margin:0 0 10px">Here's what moved on the names you follow.</p>`;
   }
 
@@ -218,7 +218,7 @@ export async function composeBrief(data: BriefData, deps: ComposeDeps = {}): Pro
     .join("\n");
 
   const html = `<div style="max-width:620px;margin:0 auto;font-family:Georgia,'Times New Roman',serif;color:#1c1b19;background:#faf9f6;padding:24px">
-  <div style="font-size:22px;font-weight:600;border-bottom:1px solid #e7e4dc;padding-bottom:10px;margin-bottom:14px">MarketBrain — ${esc(data.date)}</div>
+  <div style="font-size:22px;font-weight:600;border-bottom:1px solid #e7e4dc;padding-bottom:10px;margin-bottom:14px">MarketBrain · ${esc(data.date)}</div>
   ${intro}
   ${sections}
   <p style="margin-top:22px;padding-top:12px;border-top:1px solid #e7e4dc;color:#6b675f;font-size:12px">${esc(FOOTER)}</p>

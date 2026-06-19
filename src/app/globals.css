@@ -1,21 +1,36 @@
 @import "tailwindcss";
 
-/* Editorial, single fixed warm-light theme (no dark mode): off-black on warm off-white, hairline
-   borders. Obsidian-meets-Claude. */
+/* Dark "financial terminal" theme: soft white on dark charcoal, hairline borders. Newsreader serif
+   carries prose and headings; a monospace (IBM Plex Mono) is reserved for data, tickers, and labels
+   so numbers read like a terminal without turning the UI into a dashboard. Single fixed dark theme. */
 :root {
-  --background: #faf9f6;
-  --foreground: #1c1b19;
-  --muted: #6b675f;
-  --border: #e7e4dc;
+  --background: #0f1113; /* dark charcoal, faint cool cast (not pure black) */
+  --surface: #16191c; /* elevated: dropdowns, hero, tooltips, mobile graph sheet */
+  --foreground: #ececed; /* soft white, ~15:1 on background */
+  --muted: #8d939b; /* secondary text — passes AA on charcoal */
+  --border: #262a2f; /* hairline, subtle */
+  --ok: #3fb27f; /* supported thesis / success */
+  --warn: #d9a441; /* contested */
+  --danger: #e5685f; /* errors, unsupported / weak thesis */
+}
+
+/* Slightly larger base for his eyesight — a uniform rem bump, one tunable lever for the whole UI. */
+html {
+  font-size: 17px;
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
   --color-border: var(--border);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
   --font-sans: var(--font-serif);
   --font-serif: var(--font-serif);
+  --font-mono: var(--font-mono-ibm), ui-monospace, "SF Mono", "Menlo", monospace;
 }
 
 body {

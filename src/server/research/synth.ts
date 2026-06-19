@@ -19,7 +19,7 @@ const SYSTEM =
 
 export async function synthesizeResearch(input: ResearchSynthInput): Promise<ResearchSynthOutput> {
   if (input.findings.length === 0) {
-    return { summary: "No sources in the graph for this request yet — try a more specific prompt, or dump a note to seed it." };
+    return { summary: "No sources in the graph for this request yet. Try a more specific prompt, or dump a note to seed it." };
   }
   const context = input.findings.map((f) => `- [${f.title}](/node/${f.id}) (${f.type}): ${f.snippet}`).join("\n");
   const res = await generateText({

@@ -11,7 +11,7 @@ export default async function AskPage() {
       <h1 className="mb-1 mt-2 text-xl font-semibold">Ask your graph</h1>
       <p className="mb-6 text-sm text-muted">
         Ask about your companies, themes, theses, or the news on your names. Answers are grounded in
-        your graph with citations to the nodes they came from — it surfaces what you&apos;ve collected,
+        your graph with citations to the nodes they came from. It surfaces what you&apos;ve collected,
         it doesn&apos;t give advice.
       </p>
       <AskBox />

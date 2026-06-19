@@ -42,7 +42,7 @@ export function FollowForm() {
           {pending ? "Following…" : "Follow"}
         </button>
       </div>
-      {error && <p className="text-[#a32f2f]">{error}</p>}
+      {error && <p className="text-danger">{error}</p>}
     </form>
   );
 }
