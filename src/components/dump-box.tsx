@@ -19,7 +19,7 @@ function costOf(usage: unknown): number | undefined {
 // Per-file progress. Normalization has no real percentage (pending -> processing -> done), so the
 // bar is empty while queued, an indeterminate sweep while the LLM runs, and full when done.
 function StatusBar({ status }: { status: string }) {
-  if (status === "failed") return <span className="shrink-0 text-xs text-red-600">failed</span>;
+  if (status === "failed") return <span className="shrink-0 text-xs text-danger">failed</span>;
   return (
     <div className="flex shrink-0 items-center gap-2">
       <span className="w-16 text-right text-xs text-muted">{status === "processing" ? "normalizing" : status}</span>
@@ -63,7 +63,7 @@ export function DumpBox({ uid, graphId }: { uid: string; graphId: string }) {
           uploaded = true;
         } catch {
           setItems((cur) => [
-            { id: crypto.randomUUID(), label: `${file.name} — upload failed`, status: "failed" },
+            { id: crypto.randomUUID(), label: `${file.name}: upload failed`, status: "failed" },
             ...cur,
           ]);
         }
@@ -85,7 +85,7 @@ export function DumpBox({ uid, graphId }: { uid: string; graphId: string }) {
       kickNormalize();
     } catch {
       setItems((cur) => [
-        { id: crypto.randomUUID(), label: "paste — upload failed", status: "failed" },
+        { id: crypto.randomUUID(), label: "paste: upload failed", status: "failed" },
         ...cur,
       ]);
     } finally {

@@ -18,7 +18,7 @@ function FieldValue({ value }: { value: unknown }) {
       <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5">
         {Object.entries(value).map(([k, v]) => (
           <div key={k} className="contents">
-            <dt className="text-muted">{k}</dt>
+            <dt className="font-mono text-xs uppercase tracking-wide text-muted">{k}</dt>
             <dd>
               {isUrl(v) ? (
                 <a href={v} target="_blank" rel="noreferrer" className="break-all hover:underline">
@@ -121,12 +121,12 @@ export default async function NodePage({ params }: { params: Promise<{ id: strin
     <div className="p-6">
       <header className="mb-6 mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
         <h1 className="text-xl font-semibold">{node.title}</h1>
-        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{node.type}</span>
+        <span className="rounded-full border border-border bg-surface px-2 py-0.5 font-mono text-xs uppercase tracking-wide text-muted">{node.type}</span>
         {node.status && <span className="text-xs text-muted">{node.status}</span>}
         {nodeTags.length > 0 && (
           <span className="flex w-full flex-wrap gap-1.5">
             {nodeTags.map((t) => (
-              <span key={t} className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{t}</span>
+              <span key={t} className="rounded-full border border-border bg-surface px-2 py-0.5 font-mono text-xs uppercase tracking-wide text-muted">{t}</span>
             ))}
           </span>
         )}
@@ -152,7 +152,7 @@ export default async function NodePage({ params }: { params: Promise<{ id: strin
         <dl className="mb-6 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
           {fields.map(([k, v]) => (
             <div key={k} className="contents">
-              <dt className="text-muted">{k}</dt>
+              <dt className="font-mono text-xs uppercase tracking-wide text-muted">{k}</dt>
               <dd>
                 <FieldValue value={v} />
               </dd>
@@ -169,7 +169,7 @@ export default async function NodePage({ params }: { params: Promise<{ id: strin
         <div className="mb-6 flex flex-wrap gap-3">
           {assets.map((a) =>
             a.url ? (
-              <a key={a.id} href={a.url} target="_blank" rel="noreferrer" className="text-sm text-blue-600 hover:underline">
+              <a key={a.id} href={a.url} target="_blank" rel="noreferrer" className="text-sm text-foreground underline decoration-border underline-offset-2 hover:decoration-foreground">
                 {a.caption ?? a.kind}
               </a>
             ) : null,

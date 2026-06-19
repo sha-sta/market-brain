@@ -61,7 +61,7 @@ export async function editNodeField(formData: FormData): Promise<void> {
   const field = String(formData.get("field") ?? "").trim();
   const value = String(formData.get("value") ?? "");
   if (!nodeId || !EDITABLE_FIELDS.has(field)) return; // reject identity/internal fields outright
-  if (value.length > 10_000) throw new Error("That edit is too long — keep it under 10,000 characters.");
+  if (value.length > 10_000) throw new Error("That edit is too long. Keep it under 10,000 characters.");
 
   const prior = await loadPrior(supabase, graphId, nodeId);
   if (!prior) throw new Error("Node not found.");
@@ -71,7 +71,7 @@ export async function editNodeField(formData: FormData): Promise<void> {
     await writeNodeData(supabase, graphId, nodeId, patch, { embed, prior, reason: "manual", snapshot: true });
   } catch (e) {
     reportError(e, { scope: "editNodeField" });
-    throw new Error("Couldn't save that edit — please try again.");
+    throw new Error("Couldn't save that edit. Please try again.");
   }
   revalidatePath(`/node/${nodeId}`);
 }
@@ -89,7 +89,7 @@ export async function archiveNode(formData: FormData): Promise<void> {
     await writeNodeData(supabase, graphId, nodeId, { lifecycle: "archived" }, { prior, reason: "archive", snapshot: true });
   } catch (e) {
     reportError(e, { scope: "archiveNode" });
-    throw new Error("Couldn't archive — please try again.");
+    throw new Error("Couldn't archive. Please try again.");
   }
   revalidatePath(`/node/${nodeId}`);
 }
@@ -110,7 +110,7 @@ export async function restoreNode(formData: FormData): Promise<void> {
     .eq("id", nodeId);
   if (error) {
     reportError(error, { scope: "restoreNode" });
-    throw new Error("Couldn't restore — please try again.");
+    throw new Error("Couldn't restore. Please try again.");
   }
   revalidatePath(`/node/${nodeId}`);
 }

@@ -59,7 +59,7 @@ export function NavMenu({ isAdmin }: { isAdmin: boolean }) {
         {open ? "Close" : "Menu"}
       </button>
       {open && (
-        <div className="absolute right-0 top-14 z-50 flex flex-col items-end gap-3 border-b border-l border-border bg-background p-4 text-sm shadow-lg lg:hidden">
+        <div className="absolute right-0 top-14 z-50 flex flex-col items-end gap-3 border-b border-l border-border bg-surface p-4 text-sm shadow-lg lg:hidden">
           {links}
         </div>
       )}

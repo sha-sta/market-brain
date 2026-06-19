@@ -10,7 +10,7 @@ export default async function DumpPage() {
     <div className="p-6">
       <h1 className="mb-1 mt-2 text-xl font-semibold">Dump</h1>
       <p className="mb-6 text-sm text-muted">
-        Drop files or paste text. It gets normalized into the active graph — deduped against
+        Drop files or paste text. It gets normalized into the active graph and deduped against
         what&apos;s already there.
       </p>
       <DumpBox uid={profile.id} graphId={graphId} />

@@ -32,7 +32,7 @@ export default async function FollowPage() {
       <h1 className="mb-1 text-2xl font-semibold">Following</h1>
       <p className="mb-6 text-sm text-muted">
         The names and industries you track. Your morning brief and research run off this list. Mark what you
-        own — MarketBrain surfaces, you decide.
+        own; MarketBrain surfaces, you decide.
       </p>
 
       <div className="mb-8 overflow-x-auto">
@@ -58,7 +58,7 @@ export default async function FollowPage() {
               return (
                 <tr key={t.node_id} className="border-b border-border/60">
                   <td className="py-2 pr-3 font-medium">{node?.title ?? t.node_id}</td>
-                  <td className="py-2 pr-3 text-muted">{node?.type ?? "—"}</td>
+                  <td className="py-2 pr-3 font-mono text-xs uppercase tracking-wide text-muted">{node?.type ?? "·"}</td>
                   <td className="py-2 pr-3">
                     <form action={setKind} className="flex items-center gap-2">
                       <input type="hidden" name="node_id" value={t.node_id} />
@@ -80,7 +80,7 @@ export default async function FollowPage() {
                   <td className="py-2 text-right">
                     <form action={unfollowEntity}>
                       <input type="hidden" name="node_id" value={t.node_id} />
-                      <button type="submit" className="text-xs text-muted hover:text-[#a32f2f]" title="Unfollow">
+                      <button type="submit" className="text-xs text-muted hover:text-danger" title="Unfollow">
                         unfollow
                       </button>
                     </form>

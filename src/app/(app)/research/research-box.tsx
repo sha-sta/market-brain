@@ -98,7 +98,7 @@ export function ResearchBox({ initial }: { initial: ResearchJobView[] }) {
               <span className="shrink-0 text-xs text-muted">{j.status === "running" ? "researching…" : j.status}</span>
             </div>
             {j.result && <p className="whitespace-pre-wrap text-muted">{j.result}</p>}
-            {j.status === "failed" && <p className="text-[#a32f2f]">Research failed — try a narrower prompt.</p>}
+            {j.status === "failed" && <p className="text-danger">Research failed. Try a narrower prompt.</p>}
           </li>
         ))}
       </ul>

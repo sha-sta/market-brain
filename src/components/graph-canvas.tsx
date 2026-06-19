@@ -10,10 +10,10 @@ import { FG, nodeColorForType } from "@/lib/graph-style";
 // dynamic({ ssr:false }) boundary in graph-shell. Owns the imperative ref (center/zoom on the active
 // node) so graph-shell never has to forward a ref through next/dynamic.
 
-const BG = "#faf9f6"; // background (warm off-white)
+const BG = "#0f1113"; // background (dark charcoal — matches --background)
 const DIM_ALPHA = 0.18; // search non-matches fade back, the rest stay full strength
-const LINK_STRONG = "#6f6a5d"; // solid edges (verifiable relations) — clearly visible
-const LINK_WEAK = "#9c9686"; // dashed edges (association) — darkened so they read on the off-white
+const LINK_STRONG = "#5b636c"; // solid edges (verifiable relations) — lifted to read on charcoal
+const LINK_WEAK = "#363d44"; // dashed edges (association) — dim, recessive on the dark bg
 
 type FGNode = NodeObject<GraphNode>;
 type FGLink = { source: unknown; target: unknown; relation_type?: string; relations?: string[]; strong?: boolean };

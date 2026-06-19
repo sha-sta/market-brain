@@ -70,6 +70,18 @@ Required in **Vercel**: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_K
 4. **Verify the cloud graph is seeded** after migrating (`select count(*) from public.nodes;`). Re-run `npm run seed` against cloud if empty (needs `AI_GATEWAY_API_KEY` for embeddings).
 5. **Smoke the cron end-to-end:** `curl -H "Authorization: Bearer <CRON_SECRET>" https://<app>.vercel.app/api/cron/daily` → JSON summary; check `/brief`. First run is quietest (no prior snapshots to diff).
 
+### ⚠️ Father's Day send plan (don't spoil the surprise)
+The brief emails whoever `DIGEST_TO` is — there is NO account/approval check on the recipient
+(`send-digest.ts` sends unconditionally when `to` is set). So once the Gmail vars are live, dad gets a
+morning email **regardless of having an account**. Two timing traps:
+- The cron is `0 11 * * 1-5` (Mon–Fri, ~7am ET) → it would email dad on a **weekday before** Father's
+  Day, AND it does **not run on Sunday** (Father's Day = Sun Jun 21, 2026), so it won't auto-send on the day.
+- **Until the day:** set `DIGEST_TO` to YOUR OWN email (or unset `GMAIL_APP_PASSWORD`) + redeploy — any
+  run goes to you, and you verify delivery works.
+- **Father's Day morning:** set `DIGEST_TO` = dad's email, redeploy, then fire it manually (the schedule
+  skips Sunday): `curl -H "Authorization: Bearer $CRON_SECRET" https://<app>.vercel.app/api/cron/daily`.
+  For ongoing daily delivery afterward, change the schedule to `0 11 * * *`.
+
 ### Deferred (additive — node types + brief sections already exist; these just auto-populate them)
 - **FMP earnings/ratings → `catalyst` nodes** and **EDGAR filings → `filing` nodes**: the adapters exist and `liveMarketDeps` wires `earnings`/`ratings`/`filings`, but `runDailyForGraph` doesn't call them yet.
 - **LLM connection-finder** (+ a `graph_insights` table) to surface non-obvious multi-hop connections in the brief — the brief's "New connections" today is the simpler ≥2-holdings traversal.
