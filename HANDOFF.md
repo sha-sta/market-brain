@@ -14,7 +14,7 @@ researches topics from the open web on request, and produces **strict, non-sycop
 
 ---
 
-## ⚠️ Read first — the two things that can be broken right now
+## ⚠️ Read first — the three things that can be broken right now
 
 1. **Cloud DB schema is UNVERIFIED.** The code on prod (`main`) expects migrations **`0032–0042`**
    (research_jobs, node_revisions, dropped `positions`, lifecycle cols, etc.). A Vercel code deploy
@@ -28,6 +28,25 @@ researches topics from the open web on request, and produces **strict, non-sycop
    `0 11 * * 1-5` (Mon–Fri ~7am ET). **If `DIGEST_TO` is already set to Appa's email and a sender is
    configured, he gets a brief on a weekday before Father's Day (Sun Jun 21, 2026).** Keep `DIGEST_TO`
    = your own email until the day. See "Father's Day send plan" below.
+3. **Daily digest email is NOT arriving (open issue, 2026-06-19).** Enrichment ran but no email was
+   sent. Confirmed via `vercel env ls`: prod HAS `GMAIL_USER` + `GMAIL_APP_PASSWORD` + `DIGEST_TO`
+   (sender = Gmail SMTP, since `GMAIL_APP_PASSWORD` is set → `route.ts:58`); **Resend is gone**
+   (`RESEND_*` absent — intentional). So it's not "env unset." The mail adapters **degrade silently**
+   (`gmail.ts`/`resend.ts` catch + `reportError`, never throw), so a failure leaves the brief
+   `archived`/`failed` with no user-visible error. **Zero-risk discriminator — check `/brief`:**
+   - If `/brief` shows **today's** date → compose+archive ran, so the failure is at SEND: almost
+     certainly the **Gmail App Password is invalid** (history: it was blocked after a password reset;
+     also a 16-char Google app password pasted WITH its spaces fails SMTP auth). Fix: regenerate the
+     App Password (Google Account → Security → App passwords), set it in Vercel **with no spaces**,
+     redeploy.
+   - If `/brief` has **no today entry** → the cron likely **timed out** (`maxDuration = 300s`):
+     `route.ts` runs `runDailyForGraph` (incl. the Sonnet thesis-judge over ALL theses) and THEN
+     `sendDigestForGraph`, sequentially per graph — slow enrichment can eat the budget before the
+     digest runs. Fix options: split fetch from send, or speed/cap the judge.
+   Authoritative confirmation either way: re-fire the cron and read the returned JSON
+   `results[].digest.{status,reason}` — but ONLY after confirming `DIGEST_TO` = your own email (it
+   sends). Idempotent: if today's row is already `sent`, re-firing returns `skipped` and sends nothing
+   (so if it "sent" but you saw nothing, check spam).
 
 ---
 
@@ -153,12 +172,15 @@ dashboard). `BOOTSTRAP_ADMIN_EMAIL` is read only by `scripts/seed.ts`.
    prod until the cloud schema matches `0032–0042`.
 2. **Let Appa in.** Publish the Google **OAuth consent screen** ("In production", basic scopes, no
    verification needed) OR add his email as a **test user**. When he signs in, approve at **`/admin`**.
-3. **Email the brief.** Configure a sender (Gmail App Password OR Resend) + `DIGEST_TO`. No code change
-   — the cron picks it up. Until then the brief composes + archives to `/brief`.
-4. **Seed the graph so Appa doesn't start empty** — see "Seed the graph" appendix below. Test it
+3. **Fix the digest email (OPEN).** Env is already set in prod (Gmail sender + `DIGEST_TO`; Resend
+   removed). Diagnose with the `/brief`-today discriminator in "Read first" #3 → fix the Gmail App
+   Password (most likely) or the 300s cron timeout. No code change needed for the App-Password path.
+4. **Fix age-only news archival** (decay audit, above): don't archive a `news` node still referenced by
+   an active thesis / tracked entity, or it silently drops out of thesis evidence + RAG after 45d.
+5. **Seed the graph so Appa doesn't start empty** — see "Seed the graph" appendix below. Test it
    yourself first (ideally in a separate graph via the top-left graph selector), confirm it populates,
    wipe the test data, then hand him the same `seed.md` on the day.
-5. **Smoke the cron end-to-end** (only after `DIGEST_TO` = your own email):
+6. **Smoke the cron end-to-end** (only after `DIGEST_TO` = your own email):
    `curl -H "Authorization: Bearer <CRON_SECRET>" https://<app>.vercel.app/api/cron/daily` → JSON
    summary; check `/brief` renders dark.
 
@@ -175,6 +197,35 @@ dashboard). `BOOTSTRAP_ADMIN_EMAIL` is read only by `scripts/seed.ts`.
   `liveMarketDeps` wires them, but `runDailyForGraph` doesn't call them yet.
 - **LLM connection-finder** (+ a `graph_insights` table) for non-obvious multi-hop connections.
 - **Full staged/resumable engine** (`engine_runs` cursor) — current daily run is fine at 1×/day.
+
+---
+
+## Decay & lifecycle — audit (2026-06-19) + the one fishy thing to fix
+
+Investigated because of the worry "nodes might disappear that shouldn't." **Bottom line: NO node is
+ever deleted by decay, and only `news` nodes ever auto-change state.** Four distinct mechanisms:
+
+| Mechanism | Touches | Effect | Reversible |
+| --- | --- | --- | --- |
+| **News archival** (`archiveStaleNews`, `daily.ts:228`) | **only `type='news'`** | age > 45d (120d if `materiality='high'`) → `lifecycle='archived'`; hidden from graph/RAG/brief, **edges kept, revision snapshotted** | ✅ restore on node page |
+| **Snapshot prune** (`prune_snapshots`, `0038`) | `price_snapshots` + `metric_snapshots` rows | downsample old time-series (keep <90d, weekly→2y, drop >2y) — **never nodes/edges** | n/a |
+| **Candidate decay** (`detectConnections`, `daily.ts:265`) | `tracked_entities` rows | auto-*discovered* candidates not re-surfaced in 21d → `candidate_status='dropped'`; **node untouched**, `manual`/`active` protected | re-follow |
+| **Field supersede** (`decideSupersede`, `lifecycle.ts:38`) | fields inside ONE node | newer source overwrites only **narrative** fields; **identity** (ticker/cik/name/url) never; structural = fill-only; old value → `node_revisions` | ✅ revision history |
+
+Companies/people/sectors/themes/theses/products/commodities/orgs/catalysts/macro_factors/risks/signals/
+notes **never auto-archive or auto-delete.** The only hard `DELETE`s in the codebase are the dedup-merge
+RPCs (`0017`, `0023`) — collapsing duplicate nodes, not time-driven.
+
+**The one fishy thing (fix next session):** `archiveStaleNews` archives news **purely on age, with NO
+"still referenced" guard** — despite `lifecycle.ts:69` claiming it archives "(if also unreferenced)."
+So a >45d article that is the **evidence for an active thesis** (a `confirms_thesis`/`challenges_thesis`
+edge) or still mentioned by a holding gets archived anyway, and the thesis-judge (`subgraph.ts:57`) +
+RAG both exclude archived nodes — so **a thesis can silently lose its supporting evidence after 45d.**
+Nothing is deleted (restorable), but it drops out of view/judgment. Fix: before archiving a news node,
+skip it if it has an incoming edge from an `active` thesis (or any edge from an active tracked entity),
+or extend the window for referenced news. Two minor notes while there: `lifecycle='stale'` and whole-node
+`lifecycle='superseded'` are **defined but never written** by any code path (supersede is field-level
+in-place, which is safer than the old "swap whole node" mental model implies).
 
 ---
 
