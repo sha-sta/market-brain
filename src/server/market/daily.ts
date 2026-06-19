@@ -27,7 +27,15 @@ export interface DailyDeps {
   contributorId: string; // profile id manufactured news raw_uploads are attributed to
   nowMs: number;
   judge?: Judge; // strict thesis-judge (Sonnet); omitted when AI Gateway is unconfigured
+  /** Soft deadline (absolute epoch ms) the cron passes so the LLM-heavy steps (drain + thesis-judge)
+   *  yield with budget left for the digest. Omitted => unbounded (the integration tests' fast path). */
+  deadlineMs?: number;
 }
+
+/** Max news articles drained per company per run. Finnhub returns articles WITHOUT a materiality score
+ *  (that's assigned later by the extractor), so the only signal available at ingest is recency — we keep
+ *  the newest N and let the rest fall to the next run. Bounds the slowest step (drain) and the graph's growth. */
+export const NEWS_PER_COMPANY_CAP = 8;
 
 export interface DailySummary {
   graphId: string;
@@ -130,7 +138,13 @@ async function enqueueNews(
       .map((c) =>
         limit.run(async () => {
           try {
-            const articles = await deps.market.news(c.ticker, from, to);
+            const fetched = await deps.market.news(c.ticker, from, to);
+            // Cap at ingest: keep only the newest N by publishedAt (the lone pre-extract signal). The
+            // overflow is counted as skipped and left for the next run, bounding drain cost + growth.
+            const articles = [...fetched]
+              .sort((a, b) => (Date.parse(b.publishedAt ?? "") || 0) - (Date.parse(a.publishedAt ?? "") || 0))
+              .slice(0, NEWS_PER_COMPANY_CAP);
+            if (fetched.length > articles.length) skipped += fetched.length - articles.length;
             for (const a of articles) {
             const url = canonicalizeUrl(a.url);
             if (!url) continue;
@@ -331,7 +345,7 @@ export async function runDailyForGraph(supabase: Client, graphId: string, deps: 
 
   const snapshots = await snapshotPrices(supabase, graphId, companies, deps);
   const { enqueued, skipped } = await enqueueNews(supabase, graphId, companies, deps);
-  const drain = await drainPending(supabase, deps.worker);
+  const drain = await drainPending(supabase, deps.worker, 5, { deadlineMs: deps.deadlineMs });
   const mentionsLinked = await linkNewsMentions(supabase, graphId, runStartIso);
 
   // Living-graph upkeep, isolated so a failure never aborts the fetch/brief.
@@ -362,7 +376,7 @@ export async function runDailyForGraph(supabase: Client, graphId: string, deps: 
   let thesesJudged = 0;
   if (deps.judge) {
     try {
-      const judged = await judgeTheses(supabase, graphId, { judge: deps.judge, nowMs: deps.nowMs });
+      const judged = await judgeTheses(supabase, graphId, { judge: deps.judge, nowMs: deps.nowMs }, { deadlineMs: deps.deadlineMs });
       thesesJudged = judged.length;
     } catch (e) {
       reportError(e, { scope: "runDailyForGraph.judge", graph: graphId });

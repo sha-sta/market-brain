@@ -6,6 +6,7 @@ import { upsertEdge } from "@/server/normalize/upsert";
 import { reportError } from "@/lib/observability";
 import { normalizeStrength, enforceFloor } from "./calibration";
 import { gatherThesisEvidence } from "./subgraph";
+import { pastDeadline } from "@/server/lib/deadline";
 import type { JudgeInput, JudgeOutput } from "./thesis-prompt";
 
 // The strict thesis-judge: gather the evidence subgraph -> ask the (injected) judge -> GROUND it (drop
@@ -97,8 +98,16 @@ export async function judgeThesis(
   return { thesisId: thesis.id, strength, confirming, challenging, edgesWritten };
 }
 
-/** Re-judge up to `max` theses, oldest-judged first (bounded daily Sonnet cost). Per-thesis isolation. */
-export async function judgeTheses(supabase: Client, graphId: string, deps: JudgeDeps, opts: { max?: number } = {}): Promise<JudgeResult[]> {
+/** Re-judge up to `max` theses, oldest-judged first (bounded daily Sonnet cost). Per-thesis isolation.
+ *  When `deadlineMs` is set the loop stops before judging the next thesis once past it — the un-judged
+ *  ones (last_judged_at still oldest/null) are picked up first on the next run, so the judge resumes
+ *  across runs without extra bookkeeping. Partial judging is acceptable; it keeps the digest funded. */
+export async function judgeTheses(
+  supabase: Client,
+  graphId: string,
+  deps: JudgeDeps,
+  opts: { max?: number; deadlineMs?: number } = {},
+): Promise<JudgeResult[]> {
   const max = opts.max ?? 5;
   const { data: theses } = await supabase
     .from("nodes")
@@ -111,6 +120,7 @@ export async function judgeTheses(supabase: Client, graphId: string, deps: Judge
 
   const results: JudgeResult[] = [];
   for (const t of theses ?? []) {
+    if (pastDeadline(opts.deadlineMs)) break; // time-boxed — resume on the next run (oldest-judged-first)
     try {
       results.push(await judgeThesis(supabase, graphId, { id: t.id, data: (t.data ?? {}) as Record<string, unknown> }, deps));
     } catch (e) {
