@@ -872,6 +872,10 @@ export type Database = {
         Args: { drop_id: string; keep_id: string; p_graph_id: string }
         Returns: undefined
       }
+      prune_archived_nodes: {
+        Args: { p_graph_id: string; p_now?: string }
+        Returns: number
+      }
       prune_snapshots: { Args: { p_graph_id: string }; Returns: undefined }
       upsert_edge: {
         Args: {

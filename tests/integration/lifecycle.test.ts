@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { adminClient, cleanupAll, TEST_GRAPH_ID } from "./_helpers";
 import { upsertNode } from "@/server/normalize/upsert";
-import { archiveStaleNews } from "@/server/market/daily";
+import { decayStaleNodes } from "@/server/market/daily";
 import { searchNodes } from "@/lib/graph";
 import type { NodeRecord } from "@/server/normalize/types";
 import type { Json } from "@/lib/database.types";
@@ -142,8 +142,11 @@ describe("living graph — news archival", () => {
       materiality: "low",
     });
 
-    const archived = await archiveStaleNews(admin, TEST_GRAPH_ID, nowMs);
+    // 200d-old news has no _tier => conservative 'notable' default: archives at 90d, deletes at 270d, so
+    // here it soft-hides but is NOT yet hard-deleted (200 < 270). Fresh news (2d) stays active.
+    const { archived, deleted } = await decayStaleNodes(admin, TEST_GRAPH_ID, nowMs);
     expect(archived).toBe(1);
+    expect(deleted).toBe(0);
 
     const { data: oldNode } = await admin.from("nodes").select("lifecycle").eq("graph_id", TEST_GRAPH_ID).eq("id", "old-news").single();
     expect(oldNode!.lifecycle).toBe("archived");

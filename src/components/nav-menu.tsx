@@ -32,6 +32,9 @@ export function NavMenu({ isAdmin }: { isAdmin: boolean }) {
       <Link href="/research" className={link} onClick={close}>
         Research
       </Link>
+      <Link href="/archived" className={link} onClick={close}>
+        Archived
+      </Link>
       {isAdmin && (
         <Link href="/admin" className={link} onClick={close}>
           Admin

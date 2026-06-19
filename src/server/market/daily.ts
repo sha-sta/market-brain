@@ -3,8 +3,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
 import { drainPending } from "@/server/normalize/drain";
 import type { WorkerDeps } from "@/server/normalize/worker";
+import type { NodeType } from "@/server/normalize/types";
 import { upsertEdge, writeNodeData } from "@/server/normalize/upsert";
-import { newsArchiveCutoffMs } from "@/server/normalize/lifecycle";
+import { archiveCutoffMs, asOfFromData } from "@/server/normalize/lifecycle";
 import { judgeTheses, type Judge } from "@/server/critic/thesis-judge";
 import { CONFIDENCE_WEAK } from "@/server/normalize/relations";
 import { canonicalizeUrl, normTicker } from "@/server/normalize/dedupe";
@@ -45,7 +46,8 @@ export interface DailySummary {
   newsSkipped: number;
   drained: number;
   mentionsLinked: number;
-  archivedNews: number;
+  archived: number; // chronological nodes soft-hidden this run (tiered decay)
+  deleted: number; // long-archived chronological nodes hard-deleted this run (reference-guarded)
   pruned: boolean;
   thesesJudged: number;
   discovered: number;
@@ -236,37 +238,54 @@ async function linkNewsMentions(supabase: Client, graphId: string, runStartIso: 
   return linked;
 }
 
-/** Archive stale, aging news so it drops out of default views + RAG (recoverable; edges preserved). A
- *  news node archives when its effective date (published_at, else created_at) is older than the
- *  materiality-based window. Snapshots a revision per node. Returns the count archived. */
-export async function archiveStaleNews(supabase: Client, graphId: string, nowMs: number): Promise<number> {
+// Chronological types eligible for tiered decay (structural types + note + thesis never decay here).
+const DECAY_TYPES = ["news", "catalyst", "signal", "filing"];
+
+/** Tiered decay upkeep, per graph. (1) ARCHIVE active chronological nodes whose effective date is past
+ *  their tier's archive window — a soft-hide (edges + a revision kept, recoverable via /archived). (2)
+ *  HARD-DELETE long-archived nodes past their delete window via the reference-guarded prune RPC, which
+ *  reclaims the row + its embedding but never touches a node that is evidence for an active thesis or
+ *  linked to an active tracked entity. Snapshots a revision per archive. Returns counts. */
+export async function decayStaleNodes(supabase: Client, graphId: string, nowMs: number): Promise<{ archived: number; deleted: number }> {
   const { data: rows } = await supabase
     .from("nodes")
-    .select("id, title, status, data, created_at")
+    .select("id, type, title, status, data, created_at")
     .eq("graph_id", graphId)
-    .eq("type", "news")
+    .in("type", DECAY_TYPES)
     .eq("lifecycle", "active");
   let archived = 0;
   for (const r of rows ?? []) {
     const data = (r.data ?? {}) as Record<string, unknown>;
-    const dateStr = typeof data.published_at === "string" && data.published_at ? data.published_at : r.created_at;
-    const t = Date.parse(dateStr);
-    const effective = Number.isNaN(t) ? nowMs : t;
-    if (effective >= newsArchiveCutoffMs(data.materiality, nowMs)) continue; // still fresh enough
+    const cutoff = archiveCutoffMs(r.type, data, nowMs);
+    if (cutoff == null) continue; // this type/tier never archives (e.g. a landmark catalyst)
+    const effective = asOfFromData(data, Date.parse(r.created_at) || nowMs);
+    if (effective >= cutoff) continue; // still fresh enough
     try {
       await writeNodeData(
         supabase,
         graphId,
         r.id,
         { lifecycle: "archived" },
-        { prior: { type: "news", title: r.title, status: r.status, data }, reason: "archive", snapshot: true },
+        { prior: { type: r.type as NodeType, title: r.title, status: r.status, data }, reason: "archive", snapshot: true },
       );
       archived += 1;
     } catch (e) {
-      reportError(e, { scope: "archiveStaleNews", nodeId: r.id });
+      reportError(e, { scope: "decayStaleNodes.archive", nodeId: r.id });
     }
   }
-  return archived;
+
+  let deleted = 0;
+  try {
+    const { data: n, error } = await supabase.rpc("prune_archived_nodes", {
+      p_graph_id: graphId,
+      p_now: new Date(nowMs).toISOString(),
+    });
+    if (error) throw new Error(error.message);
+    deleted = n ?? 0;
+  } catch (e) {
+    reportError(e, { scope: "decayStaleNodes.prune", graph: graphId });
+  }
+  return { archived, deleted };
 }
 
 const AUTO_TRACK_DECAY_DAYS = 21;
@@ -349,11 +368,12 @@ export async function runDailyForGraph(supabase: Client, graphId: string, deps: 
   const mentionsLinked = await linkNewsMentions(supabase, graphId, runStartIso);
 
   // Living-graph upkeep, isolated so a failure never aborts the fetch/brief.
-  let archivedNews = 0;
+  let archived = 0;
+  let deleted = 0;
   try {
-    archivedNews = await archiveStaleNews(supabase, graphId, deps.nowMs);
+    ({ archived, deleted } = await decayStaleNodes(supabase, graphId, deps.nowMs));
   } catch (e) {
-    reportError(e, { scope: "runDailyForGraph.archive", graph: graphId });
+    reportError(e, { scope: "runDailyForGraph.decay", graph: graphId });
   }
   let pruned = false;
   try {
@@ -391,7 +411,8 @@ export async function runDailyForGraph(supabase: Client, graphId: string, deps: 
     newsSkipped: skipped,
     drained: drain.processed,
     mentionsLinked,
-    archivedNews,
+    archived,
+    deleted,
     pruned,
     thesesJudged,
     discovered,
