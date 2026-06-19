@@ -10,7 +10,8 @@ import { chunkText } from "./chunk";
 import { normalizeTags } from "./tags";
 import { mergeNode } from "./merge";
 import { CONFIDENCE_WEAK } from "./relations";
-import type { RawRelation } from "./extract-schema";
+import { applyCorrections } from "./reconcile";
+import type { RawRelation, RawCorrection } from "./extract-schema";
 import { addChunkUsage, EMPTY_USAGE, type ExtractUsage, type UsageTotals } from "./usage";
 import { noteIdFor } from "./note-id";
 import { reportError } from "@/lib/observability";
@@ -202,6 +203,7 @@ export async function processRawUpload(
     const summaries: string[] = [];
     const docTags: string[] = [];
     const relations: RawRelation[] = [];
+    const corrections: RawCorrection[] = [];
     let docTitle = "";
     let chunksFailed = 0;
     for (const chunk of chunkText(rawText)) {
@@ -240,6 +242,7 @@ export async function processRawUpload(
       if (env.docNote?.tags) docTags.push(...env.docNote.tags);
       if (!docTitle && env.docNote?.title?.trim()) docTitle = env.docNote.title.trim();
       if (env.relations) relations.push(...env.relations);
+      if (env.corrections) corrections.push(...env.corrections);
     }
     const entities = [...entitiesById.values()];
 
@@ -287,6 +290,13 @@ export async function processRawUpload(
     // Grounded edges from the extractor's relations array — evidence-verified, the source of every
     // assertable fact. Runs after every node exists so subject/object ids resolve.
     await upsertRelations(supabase, relations, rawText, row.id, row.graph_id);
+
+    // Fact reconciliation: apply the extractor's flagged corrections to permanent nodes (high-confidence
+    // + verbatim-verified auto-apply via writeNodeData; mid-confidence queue for review). No extra LLM —
+    // the corrections rode the extraction envelope. Runs after nodes exist so targets resolve.
+    if (corrections.length > 0) {
+      await applyCorrections(supabase, row.graph_id, corrections, rawText, row.id, (t) => deps.embed([t]).then((r) => r[0] ?? []));
+    }
 
     // Ground each company's identity (ticker/cik/sector) in real market data when the LLM left it
     // blank — identity comes from FMP/Finnhub, not the model (the anti-fabrication grounding step,

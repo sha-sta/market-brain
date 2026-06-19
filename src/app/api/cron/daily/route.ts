@@ -20,6 +20,10 @@ import { reportError } from "@/lib/observability";
 // fail-closed. Node runtime (AI Gateway + service-role). maxDuration is the platform's 300s ceiling.
 export const maxDuration = 300;
 
+// Reserve the tail of the 300s budget for the digest (gather → compose → send) so the LLM-heavy steps
+// (drain + thesis-judge) can never run long enough to starve the email — the missing-brief root cause.
+const DIGEST_RESERVE_MS = 45_000;
+
 export async function GET(request: NextRequest) {
   // Fail closed: if CRON_SECRET is unset the endpoint is unreachable (never open to the internet).
   const secret = process.env.CRON_SECRET;
@@ -29,6 +33,8 @@ export async function GET(request: NextRequest) {
 
   const supabase = createAdminClient();
   const nowMs = Date.now();
+  // Stop the heavy steps DIGEST_RESERVE_MS before the platform ceiling so the digest always runs.
+  const deadlineMs = nowMs + maxDuration * 1000 - DIGEST_RESERVE_MS;
   const market = liveMarketDeps();
 
   // Manufactured news raw_uploads need a contributor (a real profile). Attribute to an active admin
@@ -67,7 +73,7 @@ export async function GET(request: NextRequest) {
     let daily: unknown = { skipped: "no active profile to attribute news to" };
     if (contributorId) {
       try {
-        daily = await runDailyForGraph(supabase, g.id, { market, worker, contributorId, nowMs, judge });
+        daily = await runDailyForGraph(supabase, g.id, { market, worker, contributorId, nowMs, judge, deadlineMs });
       } catch (e) {
         reportError(e, { scope: "cron.daily", graph: g.id });
         daily = { error: e instanceof Error ? e.message : String(e) };

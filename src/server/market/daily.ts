@@ -3,9 +3,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
 import { drainPending } from "@/server/normalize/drain";
 import type { WorkerDeps } from "@/server/normalize/worker";
+import type { NodeType } from "@/server/normalize/types";
 import { upsertEdge, writeNodeData } from "@/server/normalize/upsert";
-import { newsArchiveCutoffMs } from "@/server/normalize/lifecycle";
+import { archiveCutoffMs, asOfFromData } from "@/server/normalize/lifecycle";
 import { judgeTheses, type Judge } from "@/server/critic/thesis-judge";
+import { reconcileThesisSupersede } from "@/server/critic/thesis-supersede";
+import { gapFillStructure } from "./gap-fill";
 import { CONFIDENCE_WEAK } from "@/server/normalize/relations";
 import { canonicalizeUrl, normTicker } from "@/server/normalize/dedupe";
 import { reportError } from "@/lib/observability";
@@ -27,7 +30,15 @@ export interface DailyDeps {
   contributorId: string; // profile id manufactured news raw_uploads are attributed to
   nowMs: number;
   judge?: Judge; // strict thesis-judge (Sonnet); omitted when AI Gateway is unconfigured
+  /** Soft deadline (absolute epoch ms) the cron passes so the LLM-heavy steps (drain + thesis-judge)
+   *  yield with budget left for the digest. Omitted => unbounded (the integration tests' fast path). */
+  deadlineMs?: number;
 }
+
+/** Max news articles drained per company per run. Finnhub returns articles WITHOUT a materiality score
+ *  (that's assigned later by the extractor), so the only signal available at ingest is recency — we keep
+ *  the newest N and let the rest fall to the next run. Bounds the slowest step (drain) and the graph's growth. */
+export const NEWS_PER_COMPANY_CAP = 8;
 
 export interface DailySummary {
   graphId: string;
@@ -37,10 +48,13 @@ export interface DailySummary {
   newsSkipped: number;
   drained: number;
   mentionsLinked: number;
-  archivedNews: number;
+  archived: number; // chronological nodes soft-hidden this run (tiered decay)
+  deleted: number; // long-archived chronological nodes hard-deleted this run (reference-guarded)
   pruned: boolean;
   thesesJudged: number;
+  thesesSuperseded: number; // freshly-added theses that auto-replaced a prior near-restatement
   discovered: number;
+  gapsFilled: number; // tracked companies grounded by the (weekly) structural gap-fill pass
 }
 
 interface CompanyRow {
@@ -130,7 +144,13 @@ async function enqueueNews(
       .map((c) =>
         limit.run(async () => {
           try {
-            const articles = await deps.market.news(c.ticker, from, to);
+            const fetched = await deps.market.news(c.ticker, from, to);
+            // Cap at ingest: keep only the newest N by publishedAt (the lone pre-extract signal). The
+            // overflow is counted as skipped and left for the next run, bounding drain cost + growth.
+            const articles = [...fetched]
+              .sort((a, b) => (Date.parse(b.publishedAt ?? "") || 0) - (Date.parse(a.publishedAt ?? "") || 0))
+              .slice(0, NEWS_PER_COMPANY_CAP);
+            if (fetched.length > articles.length) skipped += fetched.length - articles.length;
             for (const a of articles) {
             const url = canonicalizeUrl(a.url);
             if (!url) continue;
@@ -222,37 +242,54 @@ async function linkNewsMentions(supabase: Client, graphId: string, runStartIso: 
   return linked;
 }
 
-/** Archive stale, aging news so it drops out of default views + RAG (recoverable; edges preserved). A
- *  news node archives when its effective date (published_at, else created_at) is older than the
- *  materiality-based window. Snapshots a revision per node. Returns the count archived. */
-export async function archiveStaleNews(supabase: Client, graphId: string, nowMs: number): Promise<number> {
+// Chronological types eligible for tiered decay (structural types + note + thesis never decay here).
+const DECAY_TYPES = ["news", "catalyst", "signal", "filing"];
+
+/** Tiered decay upkeep, per graph. (1) ARCHIVE active chronological nodes whose effective date is past
+ *  their tier's archive window — a soft-hide (edges + a revision kept, recoverable via /archived). (2)
+ *  HARD-DELETE long-archived nodes past their delete window via the reference-guarded prune RPC, which
+ *  reclaims the row + its embedding but never touches a node that is evidence for an active thesis or
+ *  linked to an active tracked entity. Snapshots a revision per archive. Returns counts. */
+export async function decayStaleNodes(supabase: Client, graphId: string, nowMs: number): Promise<{ archived: number; deleted: number }> {
   const { data: rows } = await supabase
     .from("nodes")
-    .select("id, title, status, data, created_at")
+    .select("id, type, title, status, data, created_at")
     .eq("graph_id", graphId)
-    .eq("type", "news")
+    .in("type", DECAY_TYPES)
     .eq("lifecycle", "active");
   let archived = 0;
   for (const r of rows ?? []) {
     const data = (r.data ?? {}) as Record<string, unknown>;
-    const dateStr = typeof data.published_at === "string" && data.published_at ? data.published_at : r.created_at;
-    const t = Date.parse(dateStr);
-    const effective = Number.isNaN(t) ? nowMs : t;
-    if (effective >= newsArchiveCutoffMs(data.materiality, nowMs)) continue; // still fresh enough
+    const cutoff = archiveCutoffMs(r.type, data, nowMs);
+    if (cutoff == null) continue; // this type/tier never archives (e.g. a landmark catalyst)
+    const effective = asOfFromData(data, Date.parse(r.created_at) || nowMs);
+    if (effective >= cutoff) continue; // still fresh enough
     try {
       await writeNodeData(
         supabase,
         graphId,
         r.id,
         { lifecycle: "archived" },
-        { prior: { type: "news", title: r.title, status: r.status, data }, reason: "archive", snapshot: true },
+        { prior: { type: r.type as NodeType, title: r.title, status: r.status, data }, reason: "archive", snapshot: true },
       );
       archived += 1;
     } catch (e) {
-      reportError(e, { scope: "archiveStaleNews", nodeId: r.id });
+      reportError(e, { scope: "decayStaleNodes.archive", nodeId: r.id });
     }
   }
-  return archived;
+
+  let deleted = 0;
+  try {
+    const { data: n, error } = await supabase.rpc("prune_archived_nodes", {
+      p_graph_id: graphId,
+      p_now: new Date(nowMs).toISOString(),
+    });
+    if (error) throw new Error(error.message);
+    deleted = n ?? 0;
+  } catch (e) {
+    reportError(e, { scope: "decayStaleNodes.prune", graph: graphId });
+  }
+  return { archived, deleted };
 }
 
 const AUTO_TRACK_DECAY_DAYS = 21;
@@ -331,15 +368,16 @@ export async function runDailyForGraph(supabase: Client, graphId: string, deps: 
 
   const snapshots = await snapshotPrices(supabase, graphId, companies, deps);
   const { enqueued, skipped } = await enqueueNews(supabase, graphId, companies, deps);
-  const drain = await drainPending(supabase, deps.worker);
+  const drain = await drainPending(supabase, deps.worker, 5, { deadlineMs: deps.deadlineMs });
   const mentionsLinked = await linkNewsMentions(supabase, graphId, runStartIso);
 
   // Living-graph upkeep, isolated so a failure never aborts the fetch/brief.
-  let archivedNews = 0;
+  let archived = 0;
+  let deleted = 0;
   try {
-    archivedNews = await archiveStaleNews(supabase, graphId, deps.nowMs);
+    ({ archived, deleted } = await decayStaleNodes(supabase, graphId, deps.nowMs));
   } catch (e) {
-    reportError(e, { scope: "runDailyForGraph.archive", graph: graphId });
+    reportError(e, { scope: "runDailyForGraph.decay", graph: graphId });
   }
   let pruned = false;
   try {
@@ -358,15 +396,37 @@ export async function runDailyForGraph(supabase: Client, graphId: string, deps: 
     reportError(e, { scope: "runDailyForGraph.detectConnections", graph: graphId });
   }
 
+  // Add what's MISSING (not more news): once a week, ground essential identity facts on tracked companies
+  // via the finance enricher (no LLM). Bounded + deadline-guarded so it never threatens the digest budget.
+  let gapsFilled = 0;
+  try {
+    gapsFilled = (await gapFillStructure(supabase, graphId, { nowMs: deps.nowMs, enrich: deps.worker.enrichEntities, deadlineMs: deps.deadlineMs })).filled;
+  } catch (e) {
+    reportError(e, { scope: "runDailyForGraph.gapFill", graph: graphId });
+  }
+
   // Strict thesis-judge over the freshest evidence (bounded Sonnet cost). Only when a judge is wired.
   let thesesJudged = 0;
   if (deps.judge) {
     try {
-      const judged = await judgeTheses(supabase, graphId, { judge: deps.judge, nowMs: deps.nowMs });
+      const judged = await judgeTheses(supabase, graphId, { judge: deps.judge, nowMs: deps.nowMs }, { deadlineMs: deps.deadlineMs });
       thesesJudged = judged.length;
     } catch (e) {
       reportError(e, { scope: "runDailyForGraph.judge", graph: graphId });
     }
+  }
+
+  // Replace a standing opinion when a freshly-added thesis near-restates it (high-confidence, reversible).
+  // Time-boxed under the same deadline so it never starves the digest; isolated so a failure can't abort.
+  let thesesSuperseded = 0;
+  try {
+    thesesSuperseded = await reconcileThesisSupersede(supabase, graphId, {
+      sinceIso: runStartIso,
+      embed: (t) => deps.worker.embed([t]).then((r) => r[0] ?? []),
+      deadlineMs: deps.deadlineMs,
+    });
+  } catch (e) {
+    reportError(e, { scope: "runDailyForGraph.thesisSupersede", graph: graphId });
   }
 
   return {
@@ -377,9 +437,12 @@ export async function runDailyForGraph(supabase: Client, graphId: string, deps: 
     newsSkipped: skipped,
     drained: drain.processed,
     mentionsLinked,
-    archivedNews,
+    archived,
+    deleted,
     pruned,
     thesesJudged,
+    thesesSuperseded,
     discovered,
+    gapsFilled,
   };
 }

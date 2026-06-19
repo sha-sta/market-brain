@@ -113,4 +113,5 @@ export async function restoreNode(formData: FormData): Promise<void> {
     throw new Error("Couldn't restore. Please try again.");
   }
   revalidatePath(`/node/${nodeId}`);
+  revalidatePath("/archived"); // refresh the archived-browse list after a restore
 }

@@ -18,6 +18,15 @@ function strList() {
 
 const optStr = z.string().nullish();
 
+// Permanence tier for CHRONOLOGICAL nodes (news/catalyst/signal): how long the node stays relevant
+// before it decays. Assigned by the extractor (prompt.ts) with explicit time-scale guidance. A bogus
+// or omitted value coerces to undefined (NOT a throw) so the decay engine applies its conservative
+// "keep longer" default rather than over-deleting. The canonical vocabulary lives here, reused by
+// lifecycle.ts's decayWindow().
+export const PERMANENCE_TIERS = ["ephemeral", "routine", "notable", "landmark"] as const;
+export type PermanenceTier = (typeof PERMANENCE_TIERS)[number];
+const tierField = z.enum(PERMANENCE_TIERS).nullish().catch(undefined);
+
 // public OR private. `ticker` is identity for public cos (copied verbatim, NEVER guessed); `name` is
 // identity for private cos (Anthropic, SpaceX) which have no ticker/quote API. `manual_valuation`
 // carries a private company's worth. sector/themes/founders are [[wikilinks]].
@@ -35,6 +44,8 @@ const company = z.object({
   website: optStr,
   description: optStr,
   links: def(z.record(z.string(), z.string()), {}),
+  former_name: optStr, // set by fact reconciliation on a rename (name itself is never overwritten)
+  aliases: strList(), // prior/alternate names kept for matching (append-only provenance)
 });
 
 const person = z.object({
@@ -43,6 +54,8 @@ const person = z.object({
   company: optStr, // [[company-id]]
   status: def(z.string(), "mentioned"),
   links: def(z.record(z.string(), z.string()), {}),
+  former_name: optStr, // set by fact reconciliation on a rename
+  aliases: strList(),
 });
 
 const sector = z.object({
@@ -65,6 +78,7 @@ const news = z.object({
   sentiment: def(z.enum(["bullish", "bearish", "neutral"]), "neutral"),
   materiality: def(z.enum(["high", "med", "low"]), "med"),
   tickers: strList(), // raw ticker strings -> resolved to company `mentions` edges deterministically
+  _tier: tierField, // permanence tier -> drives decay window (lifecycle.ts)
 });
 
 const filing = z.object({
@@ -95,6 +109,7 @@ const catalyst = z.object({
   about: strList(), // [[company|sector|theme|product]] it bears on
   importance: def(z.enum(["high", "med", "low"]), "med"),
   outcome: optStr, // filled once resolved (a supersede target)
+  _tier: tierField, // permanence tier -> drives decay window (lifecycle.ts)
 });
 
 // A market-wide driver (rates, inflation, FX, oil regime). Persistent backdrop.
@@ -152,6 +167,7 @@ const signal = z.object({
   observed_at: optStr,
   about: strList(), // [[company|sector|theme]]
   supersedes: optStr, // [[signal-id]] this one replaces (drives the signal supersession edge)
+  _tier: tierField, // permanence tier -> drives decay window (lifecycle.ts)
 });
 
 // `note` data is populated by the worker (full markdown body + LLM summary), not by the extractor,
