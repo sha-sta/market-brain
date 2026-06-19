@@ -1,4 +1,6 @@
-// Compose the morning brief HTML from gathered graph deltas. PURE: the LLM summarizer is INJECTED
+// Compose the morning brief HTML from gathered graph deltas. Dark "terminal card" theme to match the
+// app (a self-contained dark panel with inline colors so it renders consistently in mail clients and
+// on /brief). PURE: the LLM summarizer is INJECTED
 // (deps.summarize), so section selection / ordering / empty-state / the no-advice footer are all
 // unit-tested without a live model. If summarize is absent (or fails), the brief is template-only —
 // the gathered data alone is useful (the documented fallback). The brief NEVER recommends buy/sell;
@@ -104,9 +106,9 @@ function moversHtml(movers: Mover[]): string {
     .map((m) => {
       const up = (m.changePct ?? 0) >= 0;
       const arrow = up ? "▲" : "▼";
-      const color = up ? "#1a7f4b" : "#a32f2f";
+      const color = up ? "#3fb27f" : "#e5685f";
       const price = m.price === null ? "" : ` · $${m.price.toFixed(2)}`;
-      return `<li><strong>${esc(m.title)}</strong> <span style="color:#6b675f">(${esc(m.ticker)})</span> <span style="color:${color}">${arrow} ${esc(pct(m.changePct))}</span>${esc(price)}</li>`;
+      return `<li><strong>${esc(m.title)}</strong> <span style="color:#8d939b">(${esc(m.ticker)})</span> <span style="color:${color}">${arrow} ${esc(pct(m.changePct))}</span>${esc(price)}</li>`;
     })
     .join("");
   return `<h3 style="margin:18px 0 6px">Price moves</h3><ul style="margin:0;padding-left:18px">${rows}</ul>`;
@@ -117,13 +119,13 @@ function newsHtml(news: NewsItem[]): string {
   const rows = news
     .map((n) => {
       const href = safeHref(n.url);
-      const link = href ? `<a href="${esc(href)}" style="color:#1c1b19">${esc(n.headline)}</a>` : esc(n.headline);
+      const link = href ? `<a href="${esc(href)}" style="color:#ececed">${esc(n.headline)}</a>` : esc(n.headline);
       const meta = [n.source, n.sentiment, n.materiality ? `${n.materiality} materiality` : null]
         .filter(Boolean)
         .map((x) => esc(String(x)))
         .join(" · ");
-      const ment = n.mentions.length ? `<br><span style="color:#6b675f;font-size:13px">on ${n.mentions.map(esc).join(", ")}</span>` : "";
-      return `<li style="margin-bottom:8px">${link}${meta ? `<br><span style="color:#6b675f;font-size:13px">${meta}</span>` : ""}${ment}</li>`;
+      const ment = n.mentions.length ? `<br><span style="color:#8d939b;font-size:13px">on ${n.mentions.map(esc).join(", ")}</span>` : "";
+      return `<li style="margin-bottom:8px">${link}${meta ? `<br><span style="color:#8d939b;font-size:13px">${meta}</span>` : ""}${ment}</li>`;
     })
     .join("");
   return `<h3 style="margin:18px 0 6px">What changed on your names</h3><ul style="margin:0;padding-left:18px">${rows}</ul>`;
@@ -132,27 +134,27 @@ function newsHtml(news: NewsItem[]): string {
 function connectionsHtml(connections: Connection[]): string {
   if (connections.length === 0) return "";
   const rows = connections
-    .map((c) => `<li><strong>${esc(c.entity)}</strong> appears across ${c.holdings.length} of your holdings <span style="color:#6b675f">(${c.holdings.map(esc).join(", ")})</span></li>`)
+    .map((c) => `<li><strong>${esc(c.entity)}</strong> appears across ${c.holdings.length} of your holdings <span style="color:#8d939b">(${c.holdings.map(esc).join(", ")})</span></li>`)
     .join("");
   return `<h3 style="margin:18px 0 6px">Connections</h3><ul style="margin:0;padding-left:18px">${rows}</ul>`;
 }
 
 const STRENGTH_COLOR: Record<string, string> = {
-  unsupported: "#a32f2f",
-  weak: "#a32f2f",
-  contested: "#b8860b",
-  supported: "#1a7f4b",
-  "well-supported": "#1a7f4b",
+  unsupported: "#e5685f",
+  weak: "#e5685f",
+  contested: "#d9a441",
+  supported: "#3fb27f",
+  "well-supported": "#3fb27f",
 };
 
 function thesisChecksHtml(checks: ThesisCheck[]): string {
   if (checks.length === 0) return "";
   const rows = checks
     .map((c) => {
-      const color = STRENGTH_COLOR[c.strength] ?? "#6b675f";
+      const color = STRENGTH_COLOR[c.strength] ?? "#8d939b";
       const badge = `<span style="color:${color};font-weight:600">${esc(c.strength)}</span>`;
-      const counts = `<span style="color:#6b675f">(${c.confirming} for / ${c.challenging} against)</span>`;
-      const bear = c.bearCase ? `<br><span style="color:#6b675f;font-size:13px">Bear case: ${esc(c.bearCase)}</span>` : "";
+      const counts = `<span style="color:#8d939b">(${c.confirming} for / ${c.challenging} against)</span>`;
+      const bear = c.bearCase ? `<br><span style="color:#8d939b;font-size:13px">Bear case: ${esc(c.bearCase)}</span>` : "";
       return `<li style="margin-bottom:8px"><strong>${esc(c.title)}</strong> · ${badge} ${counts}${bear}</li>`;
     })
     .join("");
@@ -165,7 +167,7 @@ function filingsHtml(filings: FilingItem[]): string {
     .map((f) => {
       const label = `${esc(f.formType)}${f.company ? ` · ${esc(f.company)}` : ""}`;
       const href = safeHref(f.url);
-      return `<li>${href ? `<a href="${esc(href)}" style="color:#1c1b19">${label}</a>` : label}</li>`;
+      return `<li>${href ? `<a href="${esc(href)}" style="color:#ececed">${label}</a>` : label}</li>`;
     })
     .join("");
   return `<h3 style="margin:18px 0 6px">Filings</h3><ul style="margin:0;padding-left:18px">${rows}</ul>`;
@@ -217,11 +219,11 @@ export async function composeBrief(data: BriefData, deps: ComposeDeps = {}): Pro
     .filter(Boolean)
     .join("\n");
 
-  const html = `<div style="max-width:620px;margin:0 auto;font-family:Georgia,'Times New Roman',serif;color:#1c1b19;background:#faf9f6;padding:24px">
-  <div style="font-size:22px;font-weight:600;border-bottom:1px solid #e7e4dc;padding-bottom:10px;margin-bottom:14px">MarketBrain · ${esc(data.date)}</div>
+  const html = `<div style="max-width:620px;margin:0 auto;font-family:Georgia,'Times New Roman',serif;color:#ececed;background:#16191c;border:1px solid #262a2f;border-radius:8px;padding:24px">
+  <div style="font-size:22px;font-weight:600;border-bottom:1px solid #262a2f;padding-bottom:10px;margin-bottom:14px">MarketBrain · ${esc(data.date)}</div>
   ${intro}
   ${sections}
-  <p style="margin-top:22px;padding-top:12px;border-top:1px solid #e7e4dc;color:#6b675f;font-size:12px">${esc(FOOTER)}</p>
+  <p style="margin-top:22px;padding-top:12px;border-top:1px solid #262a2f;color:#8d939b;font-size:12px">${esc(FOOTER)}</p>
 </div>`;
 
   return { subject, html };
