@@ -15,10 +15,9 @@ and it produces strict, non-sycophantic theses.
   (Bearer `CRON_SECRET`, fail-closed). It does fetch + brief together in ONE ≤300s invocation.
 
 ## Supabase
-- Cloud project ref **`nrzyfqhfbseihxzwcvns`**; migrations `0001–0042` are pushed. **`0043–0045`
-  (`prune_archived_nodes` hard-delete, `correction_queue`, `graphs.last_gap_fill_at`) are added locally
-  and PENDING `supabase db push`** — push them before/with the next deploy or the lifecycle writes 403.
-  Christian is active+admin. Google OAuth lives in the Supabase dashboard (NOT Vercel env).
+- Cloud project ref **`nrzyfqhfbseihxzwcvns`**; migrations **`0001–0045` are pushed** (`0043–0045` =
+  `prune_archived_nodes` hard-delete, `correction_queue`, `graphs.last_gap_fill_at`). Christian is
+  active+admin. Google OAuth lives in the Supabase dashboard (NOT Vercel env).
 - **Local stacks are isolated from the sibling `brain` project**: `project_id "marketbrain"`, ports
   **5532x** main / **5533x** test. Never touch `brain`'s instance. `npm run db:start` / `db:test:start`.
 - **`npm run db:types` runs from `/tmp` on purpose** (Supabase CLI 2.106 chokes on `config.toml`'s

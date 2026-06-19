@@ -5,8 +5,9 @@ self-updating "living graph" is summarized in **`README.md`**. This doc is now O
 branch, and the operational steps left to actually deploy + verify it._
 
 > The five-workstream "keep the graph lean, current, and his" overhaul + the 300s cron timeout fix is
-> **built and fully green locally** on branch **`graph-lifecycle-overhaul`** (6 commits, not yet pushed).
-> Tests: **144 unit · 56 integration · 6 e2e**, `npm run build` clean.
+> **merged to `main`** (PR #3, squashed) and **deployed to prod**; migrations `0043–0045` are **pushed
+> to the cloud DB**. Tests: **144 unit · 56 integration · 6 e2e**, `npm run build` clean. What's left is
+> live verification (below) — no code work remains.
 
 ## What shipped (branch `graph-lifecycle-overhaul`, oldest → newest)
 1. **Time-box + digest reserve + news cap** — a soft `deadlineMs` threads through `drainPending` +
@@ -31,12 +32,10 @@ below), the authenticated UI in a browser, and whether the LIVE extractor sets `
 `corrections` only when warranted (the wiring + gating are stub-tested end-to-end; the model's judgement
 is manual-verify).
 
-## To deploy + verify (in order)
-1. **Push the branch + merge to `main`.** Vercel auto-deploys `main` to prod. (Branch is local only.)
-2. **`supabase db push` — CRITICAL.** Migrations `0043`/`0044`/`0045` are applied to LOCAL stacks only.
-   Push them to cloud (`nrzyfqhfbseihxzwcvns`) before/with the deploy, or `prune_archived_nodes` /
-   `correction_queue` / `last_gap_fill_at` 403 at runtime.
-3. **Fire the cron to confirm the timeout fix** (can't be unit-tested). `DIGEST_TO` is still your OWN
+## Verify live (no code work remains)
+- ~~Merge to `main` + deploy~~ — **done** (PR #3, auto-deployed).
+- ~~`supabase db push` of `0043`/`0044`/`0045`~~ — **done** (cloud has the schema).
+1. **Fire the cron to confirm the timeout fix** (can't be unit-tested). `DIGEST_TO` is still your OWN
    email — safe to test today. Grab `CRON_SECRET` from the Vercel dashboard (`vercel env pull` returns
    empty for this project):
    ```
@@ -45,10 +44,10 @@ is manual-verify).
    ```
    Expect HTTP 200 well under 300s with `results[].digest.status:"sent"` (a 504 near ~300s = still timing
    out).
-4. **Eyeball the new UI** (auth-gated, manual-verify per project posture): `/theses` (add a thesis, see it
+2. **Eyeball the new UI** (auth-gated, manual-verify per project posture): `/theses` (add a thesis, see it
    become a node + get judged next run) and `/archived` (restore one). To view without a session,
    temporarily add the path to `PUBLIC_PATHS` in `src/lib/supabase/proxy.ts` (revert after).
-5. **Spot-check the live extractor** on one real dump: a `_tier` set on news, and a `corrections` entry
+3. **Spot-check the live extractor** on one real dump: a `_tier` set on news, and a `corrections` entry
    only when the text actually states a fact changed.
 
 ## Open setup still pending (operational, unrelated to the build)
