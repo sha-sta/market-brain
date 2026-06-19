@@ -84,6 +84,59 @@ const FIELD_SPECS: Record<NodeType, FieldSpec[]> = {
     { name: "confidence", kind: "float" },
     { name: "status", kind: "str", enum: ["active", "confirmed", "challenged", "closed"] },
   ],
+  catalyst: [
+    { name: "name", kind: "str", required: true },
+    { name: "description", kind: "str" },
+    { name: "event_date", kind: "str" }, // ISO date, verbatim
+    { name: "about", kind: "list", link: true },
+    { name: "importance", kind: "str", enum: ["high", "med", "low"] },
+    { name: "outcome", kind: "str" },
+  ],
+  macro_factor: [
+    { name: "name", kind: "str", required: true },
+    { name: "description", kind: "str" },
+    { name: "category", kind: "str", enum: ["rates", "inflation", "fx", "employment", "policy", "geopolitical", "commodity", "other"] },
+    { name: "affects", kind: "list", link: true },
+    { name: "current_reading", kind: "str" },
+  ],
+  risk: [
+    { name: "name", kind: "str", required: true },
+    { name: "description", kind: "str" },
+    { name: "severity", kind: "str", enum: ["high", "med", "low"] },
+    { name: "likelihood", kind: "str", enum: ["high", "med", "low"] },
+    { name: "threatens", kind: "list", link: true },
+    { name: "mitigation", kind: "str" },
+  ],
+  product: [
+    { name: "name", kind: "str", required: true },
+    { name: "description", kind: "str" },
+    { name: "maker", kind: "str", link: true },
+    { name: "category", kind: "str" },
+    { name: "depends_on", kind: "list", link: true },
+  ],
+  commodity: [
+    { name: "name", kind: "str", required: true },
+    { name: "description", kind: "str" },
+    { name: "unit", kind: "str" },
+    { name: "used_in", kind: "list", link: true },
+  ],
+  organization: [
+    { name: "name", kind: "str", required: true },
+    { name: "description", kind: "str" },
+    { name: "org_type", kind: "str", enum: ["regulator", "central_bank", "government", "standards_body", "exchange", "trade_body", "other"] },
+    { name: "acts_on", kind: "list", link: true },
+    { name: "website", kind: "str" },
+  ],
+  signal: [
+    { name: "name", kind: "str", required: true },
+    { name: "description", kind: "str" },
+    { name: "signal_type", kind: "str" },
+    { name: "direction", kind: "str", enum: ["bullish", "bearish", "neutral"] },
+    { name: "strength", kind: "str", enum: ["strong", "moderate", "weak"] },
+    { name: "observed_at", kind: "str" },
+    { name: "about", kind: "list", link: true },
+    { name: "supersedes", kind: "str", link: true },
+  ],
   // `note` nodes are built by the worker (one per dumped doc), never emitted by the extractor —
   // buildTypeSpec excludes this type from the prompt. The empty spec satisfies the exhaustive Record.
   note: [],
@@ -139,8 +192,12 @@ For each note:
 - Also return a top-level \`relations\` array describing how the entities relate. Each item:
   {"subject":"<id>","relation":"<type>","object":"<id>","evidence":"<verbatim quote>"}.
   - \`relation\` is one of — STRONG (a verifiable claim): supplies_to, competes_with, subsidiary_of,
-    founded_by, in_sector, in_theme, owns, listed_on, filed, insider_of; or WEAK (association):
-    mentions, relates_to, relevant_to, covers, co_occurs.
+    founded_by, in_sector, in_theme, owns, listed_on, filed, insider_of, affects (macro_factor ->
+    company/sector/theme), threatens (risk -> company/sector/thesis), exposed_to (company/sector ->
+    risk/commodity/macro_factor), catalyst_for (catalyst -> company/sector/product), produces (company
+    -> product), depends_on (product/company -> commodity/product), regulates (organization ->
+    company/sector); or WEAK (association): mentions, relates_to, relevant_to, covers, co_occurs,
+    acts_on (organization -> company/sector), supersedes (signal -> signal).
   - Use a STRONG relation ONLY when the text EXPLICITLY states it (e.g. "TSMC manufactures NVIDIA's
     chips", "Anthropic was founded by the Amodeis"). If two things are merely discussed together, use
     relates_to — do NOT infer a supply/ownership relationship from co-occurrence.

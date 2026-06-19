@@ -107,6 +107,13 @@ const PRIMARY_FIELD: Record<string, string> = {
   theme: "name",
   news: "headline",
   thesis: "statement",
+  catalyst: "name",
+  macro_factor: "name",
+  risk: "name",
+  product: "name",
+  commodity: "name",
+  organization: "name",
+  signal: "name",
 };
 
 /** Build valid NodeRecords from an extraction envelope; collect per-note validation errors. */
@@ -255,7 +262,13 @@ export async function processRawUpload(
 
     const resolved: Array<{ record: NodeRecord; id: string }> = [];
     for (let i = 0; i < entities.length; i += 1) {
-      const res = await upsertNode(supabase, entities[i], embeddings[i + 1] ?? [], row.contributor, row.graph_id);
+      // supersede: a re-ingest from a NEWER source swaps stale narrative fields (living graph), snapshots
+      // a revision, and re-embeds via the choke-point. The incoming embedding still drives the dedupe boost.
+      const res = await upsertNode(supabase, entities[i], embeddings[i + 1] ?? [], row.contributor, row.graph_id, {
+        supersede: true,
+        sourceUploadId: row.id,
+        embed: (t) => deps.embed([t]).then((r) => r[0] ?? []),
+      });
       resolved.push({ record: entities[i], id: res.id });
     }
     // Structural edges (wikilinks) after every node exists (FK requires the target row).

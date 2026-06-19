@@ -17,8 +17,8 @@ export function NavMenu({ isAdmin }: { isAdmin: boolean }) {
       <Link href="/" className={link} onClick={close}>
         Home
       </Link>
-      <Link href="/portfolio" className={link} onClick={close}>
-        Portfolio
+      <Link href="/follow" className={link} onClick={close}>
+        Following
       </Link>
       <Link href="/brief" className={link} onClick={close}>
         Brief
@@ -28,6 +28,9 @@ export function NavMenu({ isAdmin }: { isAdmin: boolean }) {
       </Link>
       <Link href="/ask" className={link} onClick={close}>
         Ask
+      </Link>
+      <Link href="/research" className={link} onClick={close}>
+        Research
       </Link>
       {isAdmin && (
         <Link href="/admin" className={link} onClick={close}>

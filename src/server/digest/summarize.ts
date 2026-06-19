@@ -11,7 +11,8 @@ import type { BriefData } from "./compose";
 const SYSTEM =
   "You write a 1-3 sentence intro for a personal stock-market morning brief. You ONLY summarize the " +
   "supplied facts — never add information, never give buy/sell/hold advice, price targets, or " +
-  "recommendations. Plain, factual, calm. No markdown, no preamble.";
+  "recommendations. Be plain, factual, and calm, but do NOT be falsely reassuring: if a thesis " +
+  "check-in is weak or a new risk is elevated, reflect that honestly in your tone. No markdown, no preamble.";
 
 export async function summarizeBrief(data: BriefData): Promise<string> {
   const facts = [
@@ -21,6 +22,9 @@ export async function summarizeBrief(data: BriefData): Promise<string> {
     data.news.length ? `${data.news.length} new article(s): ${data.news.map((n) => n.headline).slice(0, 6).join("; ")}` : "",
     data.connections.length
       ? `Connections: ${data.connections.map((c) => `${c.entity} across ${c.holdings.length} holdings`).join(", ")}`
+      : "",
+    data.thesisChecks?.length
+      ? `Thesis check-ins: ${data.thesisChecks.map((t) => `${t.title} — ${t.strength}`).join("; ")}`
       : "",
     data.filings.length ? `${data.filings.length} new filing(s)` : "",
   ]

@@ -1,8 +1,9 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "@/lib/database.types";
+import type { Database } from "@/lib/database.types";
 import type { EntityEnricher, EntityEnrichSummary } from "@/server/normalize/worker";
 import { normTicker } from "@/server/normalize/dedupe";
+import { writeNodeData } from "@/server/normalize/upsert";
 import { reportError } from "@/lib/observability";
 import type { MarketDeps } from "./types";
 
@@ -14,24 +15,25 @@ import type { MarketDeps } from "./types";
 // and NEVER writes a raw sector label into the `sector` [[wikilink]] field.
 
 type Client = SupabaseClient<Database>;
-const asJson = (v: unknown): Json => v as Json;
+type Embed = (text: string) => Promise<number[]>;
 
 function empty(nodeId: string, skipped: EntityEnrichSummary["skipped"]): EntityEnrichSummary {
   return { nodeId, enriched: false, fieldsFilled: [], skipped };
 }
 
-export function makeFinanceEnricher(supabase: Client, market: MarketDeps): EntityEnricher {
-  return async (nodeId, graphId) => {
+export function makeFinanceEnricher(supabase: Client, market: MarketDeps, embed?: Embed): EntityEnricher {
+  return async (nodeId, graphId, sourceUploadId) => {
     try {
       const { data: row } = await supabase
         .from("nodes")
-        .select("id, type, data")
+        .select("id, type, title, data")
         .eq("graph_id", graphId)
         .eq("id", nodeId)
         .maybeSingle();
       if (!row || row.type !== "company") return empty(nodeId, "not-a-company");
 
       const data = (row.data ?? {}) as Record<string, unknown>;
+      const prior = { type: "company" as const, title: row.title ?? "", data };
       if (data.is_public === false) return empty(nodeId, "private"); // no quote/profile API for private cos
       if (data.market_provenance) return empty(nodeId, "already-grounded");
 
@@ -42,10 +44,13 @@ export function makeFinanceEnricher(supabase: Client, market: MarketDeps): Entit
       if (!profile) {
         // Negative marker so we don't re-hit the API every run; a later run with more data can't retry
         // unless the marker is cleared, which is fine for a quiet name.
-        await writeData(supabase, graphId, nodeId, {
-          ...data,
-          market_provenance: { source: "market", ticker, matched: false, enriched_at: new Date().toISOString() },
-        });
+        await writeNodeData(
+          supabase,
+          graphId,
+          nodeId,
+          { data: { ...data, market_provenance: { source: "market", ticker, matched: false, enriched_at: new Date().toISOString() } } },
+          { embed, prior, reason: "enrich", sourceUploadId },
+        );
         return empty(nodeId, "not-found");
       }
 
@@ -64,21 +69,11 @@ export function makeFinanceEnricher(supabase: Client, market: MarketDeps): Entit
         filled.push("website");
       }
       patch.market_provenance = { source: "market", ticker, matched: true, enriched_at: new Date().toISOString() };
-      await writeData(supabase, graphId, nodeId, patch);
+      await writeNodeData(supabase, graphId, nodeId, { data: patch }, { embed, prior, reason: "enrich", sourceUploadId });
       return { nodeId, enriched: filled.length > 0, fieldsFilled: filled, skipped: null };
     } catch (e) {
       reportError(e, { scope: "makeFinanceEnricher", nodeId });
       return empty(nodeId, null);
     }
   };
-}
-
-async function writeData(
-  supabase: Client,
-  graphId: string,
-  nodeId: string,
-  data: Record<string, unknown>,
-): Promise<void> {
-  const { error } = await supabase.from("nodes").update({ data: asJson(data) }).eq("graph_id", graphId).eq("id", nodeId);
-  if (error) throw new Error(`enrich write failed: ${error.message}`);
 }

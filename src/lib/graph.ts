@@ -19,18 +19,21 @@ export interface NodeListItem {
 export interface SearchOpts {
   tags?: string[]; // filter to nodes carrying ANY of these tags (OR-semantics)
   limit?: number;
+  includeHidden?: boolean; // include archived/superseded nodes (default: false — hide stale)
 }
 
 /** Full-text search over the `search` tsvector; empty query => most-recently-updated. An optional
- *  tag filter narrows to nodes overlapping any selected tag. Scoped to one graph. */
+ *  tag filter narrows to nodes overlapping any selected tag. Hidden (archived/superseded) nodes are
+ *  excluded by default. Scoped to one graph. */
 export async function searchNodes(
   supabase: Client,
   q: string,
   graphId: string,
   opts: SearchOpts = {},
 ): Promise<NodeListItem[]> {
-  const { tags = [], limit = 50 } = opts;
+  const { tags = [], limit = 50, includeHidden = false } = opts;
   let query = supabase.from("nodes").select("id, type, title, status, tags").eq("graph_id", graphId).limit(limit);
+  if (!includeHidden) query = query.in("lifecycle", ["active", "stale"]);
   if (tags.length > 0) query = query.overlaps("tags", tags);
   if (q.trim()) {
     query = query.textSearch("search", q, { type: "websearch", config: "english" });

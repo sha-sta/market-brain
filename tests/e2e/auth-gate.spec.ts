@@ -9,7 +9,7 @@ test("guest hitting home is redirected to sign-in", async ({ page }) => {
 });
 
 test("guest cannot reach the gated app pages", async ({ page }) => {
-  for (const path of ["/dump", "/portfolio", "/brief", "/ask"]) {
+  for (const path of ["/dump", "/follow", "/brief", "/ask"]) {
     await page.goto(path);
     await expect(page).toHaveURL(/\/sign-in/);
   }

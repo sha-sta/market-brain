@@ -24,14 +24,14 @@ export function uniqueId(base: string, taken: ReadonlySet<string>): string {
 }
 
 /** Per-type default status. A company starts `mentioned` (it becomes owned/watchlist via the
- *  portfolio + tracked_entities tables, never the graph); a thesis starts `active`; everything else
- *  is `active`. */
+ *  tracked_entities table, never the graph); a catalyst starts `pending` (it resolves to occurred);
+ *  everything else (thesis, macro_factor, risk, product, commodity, organization, signal, …) is `active`. */
 export function defaultStatus(type: string): string {
   switch (type) {
     case "company":
       return "mentioned";
-    case "thesis":
-      return "active";
+    case "catalyst":
+      return "pending";
     default:
       return "active";
   }

@@ -66,7 +66,6 @@ export async function cleanupAll(): Promise<void> {
   await admin.from("alert_events").delete().neq("id", ZERO);
   await admin.from("alert_rules").delete().neq("id", ZERO);
   await admin.from("price_snapshots").delete().neq("id", ZERO);
-  await admin.from("positions").delete().neq("id", ZERO);
   await admin.from("tracked_entities").delete().neq("node_id", "");
   await admin.from("digest_log").delete().neq("id", ZERO);
   await admin.from("assets").delete().neq("id", ZERO);

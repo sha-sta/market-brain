@@ -2,8 +2,9 @@
 // STRONG relations make a verifiable claim and, with a verbatim evidence quote + enough confidence,
 // become `assertable`. WEAK relations are association/navigation/provenance only and never ground a
 // generated claim. There is deliberately NO buy/sell/recommends relation — the model cannot express
-// investment advice. STRONG_RELATIONS MUST stay in sync with the `assertable` generated column in
-// supabase/migrations/0025_finance_assertable.sql.
+// investment advice. STRONG_RELATIONS MUST stay in sync with the `assertable` generated column in the
+// latest supabase/migrations/*_finance_assertable*.sql (currently 0032_finance_assertable_v2.sql) —
+// the tests/unit/relations.test.ts sync-guard fails the build if they drift.
 
 export const STRONG_RELATIONS = [
   "owns", // a holder owns a company (a position-as-fact; the portfolio table is the source of truth)
@@ -16,6 +17,13 @@ export const STRONG_RELATIONS = [
   "listed_on", // company -> exchange
   "filed", // company -> filing
   "insider_of", // person -> company
+  "affects", // macro_factor -> company/sector/theme (a stated exposure/causal claim)
+  "threatens", // risk -> company/sector/theme/thesis
+  "exposed_to", // company/sector -> risk/commodity/macro_factor (grounded only)
+  "catalyst_for", // catalyst -> company/sector/product (the date lives on the catalyst node)
+  "produces", // company -> product (grounded only; product.maker wikilink is reversed, so not mapped)
+  "depends_on", // product/company -> commodity/product
+  "regulates", // organization -> company/sector (grounded only)
 ] as const;
 
 export const WEAK_RELATIONS = [
@@ -26,6 +34,8 @@ export const WEAK_RELATIONS = [
   "challenges_thesis", // news -> thesis (created by the thesis judge)
   "co_occurs", // two entities surfaced together
   "relates_to", // generic association / downgrade target
+  "acts_on", // organization -> company/sector (softer than regulates: announcements, guidance)
+  "supersedes", // signal -> signal lifecycle bookkeeping — WEAK on purpose (never a factual claim)
 ] as const;
 
 export type Relation = (typeof STRONG_RELATIONS)[number] | (typeof WEAK_RELATIONS)[number];
@@ -68,10 +78,22 @@ const FIELD_RELATION: Record<string, string> = {
   // person -> company; a structural filing -> person wikilink would carry the wrong endpoints AND
   // direction, so it falls through to weak relates_to (navigational). The correct, direction-controlled
   // insider_of edge comes only from the extractor's grounded `relations` array.
-  about: "relevant_to", // thesis -> company/theme
+  about: "relevant_to", // thesis/catalyst/signal -> company/theme
   related_themes: "relates_to",
   covers: "covers",
   relates_to: "relates_to",
+  // Same-direction wikilink fields where the NODE is the subject and the [[target]] is the object, so
+  // the field maps cleanly onto its relation (still non-assertable at confidence 0.4 until a grounded
+  // relation with a verbatim quote corroborates it). produces/regulates/catalyst_for are intentionally
+  // NOT here: their wikilink fields (product.maker, ...) carry the wrong direction — they come only
+  // from the extractor's grounded `relations` array (same lesson as insider_of above). commodity.used_in
+  // is likewise omitted ON PURPOSE: it is the reverse of depends_on/exposed_to (commodity -> product is
+  // backwards), so its wikilink falls through to a navigational relates_to rather than a wrong-direction edge.
+  affects: "affects", // macro_factor.affects=[[company]] -> macro_factor --affects--> company
+  threatens: "threatens", // risk.threatens=[[company]] -> risk --threatens--> company
+  depends_on: "depends_on", // product.depends_on=[[commodity]] -> product --depends_on--> commodity
+  acts_on: "acts_on", // organization.acts_on=[[company]] -> organization --acts_on--> company
+  supersedes: "supersedes", // signal.supersedes=[[signal]] -> signal --supersedes--> signal
 };
 
 export function fieldToRelation(field: string): string {

@@ -1,4 +1,4 @@
-// Zod schemas for the 8 market node types. These validate the type-specific `frontmatter` the
+// Zod schemas for the 15 market node types. These validate the type-specific `frontmatter` the
 // extractor returns (which becomes nodes.data). BaseNote scaffolding (id/type/title/created/updated/
 // source) and the top-level `status` column are handled by the pipeline, not here. Unknown keys are
 // stripped (zod default), so a `status` the LLM puts in frontmatter is lifted/defaulted by assemble.
@@ -87,6 +87,73 @@ const thesis = z.object({
   status: def(z.enum(["active", "confirmed", "challenged", "closed"]), "active"),
 });
 
+// A discrete, dated event that can move an entity. Lifecycle via the top-level status (pending -> occurred).
+const catalyst = z.object({
+  name: z.string().min(1),
+  description: optStr,
+  event_date: optStr, // ISO date the catalyst is expected/occurred — verbatim
+  about: strList(), // [[company|sector|theme|product]] it bears on
+  importance: def(z.enum(["high", "med", "low"]), "med"),
+  outcome: optStr, // filled once resolved (a supersede target)
+});
+
+// A market-wide driver (rates, inflation, FX, oil regime). Persistent backdrop.
+const macro_factor = z.object({
+  name: z.string().min(1),
+  description: optStr,
+  category: def(z.enum(["rates", "inflation", "fx", "employment", "policy", "geopolitical", "commodity", "other"]), "other"),
+  affects: strList(), // [[company|sector|theme]]
+  current_reading: optStr, // latest qualitative reading (a supersede target)
+});
+
+// A threat to an entity's thesis/value. Lifecycle active -> mitigated.
+const risk = z.object({
+  name: z.string().min(1),
+  description: optStr,
+  severity: def(z.enum(["high", "med", "low"]), "med"),
+  likelihood: def(z.enum(["high", "med", "low"]), "med"),
+  threatens: strList(), // [[company|sector|theme|thesis]]
+  mitigation: optStr, // a supersede target
+});
+
+// A product/service line that is itself a tracked thing (H200, Ozempic, iPhone).
+const product = z.object({
+  name: z.string().min(1),
+  description: optStr,
+  maker: optStr, // [[company]] that produces it
+  category: optStr,
+  depends_on: strList(), // [[commodity|product|company]]
+});
+
+// A raw material / critical input (lithium, HBM, neon gas, crude).
+const commodity = z.object({
+  name: z.string().min(1),
+  description: optStr,
+  unit: optStr, // e.g. "per tonne", "per barrel"
+  used_in: strList(), // [[product|sector|company]]
+});
+
+// A non-company organization: regulator, central bank, standards body, government, index provider.
+const organization = z.object({
+  name: z.string().min(1),
+  description: optStr,
+  org_type: def(z.enum(["regulator", "central_bank", "government", "standards_body", "exchange", "trade_body", "other"]), "other"),
+  acts_on: strList(), // [[company|sector|theme|commodity]]
+  website: optStr,
+});
+
+// A derived/observed indicator that can supersede a prior reading (technical/quant/insider signal).
+const signal = z.object({
+  name: z.string().min(1),
+  description: optStr,
+  signal_type: optStr, // e.g. "valuation", "momentum", "insider-buying"
+  direction: def(z.enum(["bullish", "bearish", "neutral"]), "neutral"),
+  strength: def(z.enum(["strong", "moderate", "weak"]), "moderate"),
+  observed_at: optStr,
+  about: strList(), // [[company|sector|theme]]
+  supersedes: optStr, // [[signal-id]] this one replaces (drives the signal supersession edge)
+});
+
 // `note` data is populated by the worker (full markdown body + LLM summary), not by the extractor,
 // so every field is optional — validateNoteData("note", …) must succeed on a worker-built note.
 const note = z.object({
@@ -102,6 +169,13 @@ export const NODE_SCHEMAS: Record<NodeType, z.ZodType> = {
   news,
   filing,
   thesis,
+  catalyst,
+  macro_factor,
+  risk,
+  product,
+  commodity,
+  organization,
+  signal,
   note,
 };
 

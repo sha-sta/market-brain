@@ -3,7 +3,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
 import { drainPending } from "@/server/normalize/drain";
 import type { WorkerDeps } from "@/server/normalize/worker";
-import { upsertEdge } from "@/server/normalize/upsert";
+import { upsertEdge, writeNodeData } from "@/server/normalize/upsert";
+import { newsArchiveCutoffMs } from "@/server/normalize/lifecycle";
+import { judgeTheses, type Judge } from "@/server/critic/thesis-judge";
 import { CONFIDENCE_WEAK } from "@/server/normalize/relations";
 import { canonicalizeUrl, normTicker } from "@/server/normalize/dedupe";
 import { reportError } from "@/lib/observability";
@@ -24,6 +26,7 @@ export interface DailyDeps {
   worker: WorkerDeps; // extract/embed/neighbors/enrichEntities — passed to drainPending
   contributorId: string; // profile id manufactured news raw_uploads are attributed to
   nowMs: number;
+  judge?: Judge; // strict thesis-judge (Sonnet); omitted when AI Gateway is unconfigured
 }
 
 export interface DailySummary {
@@ -34,6 +37,10 @@ export interface DailySummary {
   newsSkipped: number;
   drained: number;
   mentionsLinked: number;
+  archivedNews: number;
+  pruned: boolean;
+  thesesJudged: number;
+  discovered: number;
 }
 
 interface CompanyRow {
@@ -48,7 +55,13 @@ function ymd(ms: number): string {
 
 /** Load this graph's tracked company nodes (resolved to id + verbatim ticker + is_public). */
 async function trackedCompanies(supabase: Client, graphId: string): Promise<CompanyRow[]> {
-  const { data: tracked } = await supabase.from("tracked_entities").select("node_id").eq("graph_id", graphId);
+  // Only ACTIVE tracked entities incur API calls — candidates (engine-discovered, not yet promoted)
+  // are the cost firewall and must never be fetched here.
+  const { data: tracked } = await supabase
+    .from("tracked_entities")
+    .select("node_id")
+    .eq("graph_id", graphId)
+    .eq("candidate_status", "active");
   const ids = (tracked ?? []).map((t) => t.node_id);
   if (ids.length === 0) return [];
   const { data: nodes } = await supabase
@@ -209,6 +222,107 @@ async function linkNewsMentions(supabase: Client, graphId: string, runStartIso: 
   return linked;
 }
 
+/** Archive stale, aging news so it drops out of default views + RAG (recoverable; edges preserved). A
+ *  news node archives when its effective date (published_at, else created_at) is older than the
+ *  materiality-based window. Snapshots a revision per node. Returns the count archived. */
+export async function archiveStaleNews(supabase: Client, graphId: string, nowMs: number): Promise<number> {
+  const { data: rows } = await supabase
+    .from("nodes")
+    .select("id, title, status, data, created_at")
+    .eq("graph_id", graphId)
+    .eq("type", "news")
+    .eq("lifecycle", "active");
+  let archived = 0;
+  for (const r of rows ?? []) {
+    const data = (r.data ?? {}) as Record<string, unknown>;
+    const dateStr = typeof data.published_at === "string" && data.published_at ? data.published_at : r.created_at;
+    const t = Date.parse(dateStr);
+    const effective = Number.isNaN(t) ? nowMs : t;
+    if (effective >= newsArchiveCutoffMs(data.materiality, nowMs)) continue; // still fresh enough
+    try {
+      await writeNodeData(
+        supabase,
+        graphId,
+        r.id,
+        { lifecycle: "archived" },
+        { prior: { type: "news", title: r.title, status: r.status, data }, reason: "archive", snapshot: true },
+      );
+      archived += 1;
+    } catch (e) {
+      reportError(e, { scope: "archiveStaleNews", nodeId: r.id });
+    }
+  }
+  return archived;
+}
+
+const AUTO_TRACK_DECAY_DAYS = 21;
+const AUTO_TRACK_TYPES = new Set(["company", "sector", "theme", "product", "commodity"]);
+
+/** Auto-discovery: promote entities linked to >= 2 ACTIVE tracked names to tracked CANDIDATES (source
+ *  'auto', NOT fetched — the cost firewall) so the engine grows the watch-list without the user curating
+ *  it. Manual/active rows are never touched. Stale candidates (not re-surfaced in 21d) are dropped.
+ *  Returns counts. */
+export async function detectConnections(supabase: Client, graphId: string, nowMs: number): Promise<{ discovered: number; dropped: number }> {
+  const { data: tracked } = await supabase
+    .from("tracked_entities")
+    .select("node_id, source, candidate_status")
+    .eq("graph_id", graphId);
+  const active = new Set((tracked ?? []).filter((t) => t.candidate_status === "active").map((t) => t.node_id));
+  // Never re-classify a manual follow or an already-active entry.
+  const protectedIds = new Set((tracked ?? []).filter((t) => t.candidate_status === "active" || t.source === "manual").map((t) => t.node_id));
+
+  // Decay first (independent of promotion): auto candidates not re-surfaced in the window are dropped,
+  // which bounds the candidate pool. Runs even when there aren't enough active names to discover more.
+  const cutoff = new Date(nowMs - AUTO_TRACK_DECAY_DAYS * 86_400_000).toISOString();
+  const { data: droppedRows } = await supabase
+    .from("tracked_entities")
+    .update({ candidate_status: "dropped" })
+    .eq("graph_id", graphId)
+    .eq("source", "auto")
+    .eq("candidate_status", "candidate")
+    .lt("last_surfaced_at", cutoff)
+    .select("node_id");
+  const dropped = (droppedRows ?? []).length;
+
+  if (active.size < 2) return { discovered: 0, dropped };
+
+  const { data: edges } = await supabase.from("edges").select("src_id, dst_id").eq("graph_id", graphId).limit(3000);
+  const holdingsByEntity = new Map<string, Set<string>>();
+  for (const e of edges ?? []) {
+    const sIn = active.has(e.src_id);
+    const dIn = active.has(e.dst_id);
+    if (sIn === dIn) continue; // want exactly one endpoint tracked (entity <-> holding)
+    const entity = sIn ? e.dst_id : e.src_id;
+    if (protectedIds.has(entity)) continue;
+    const set = holdingsByEntity.get(entity) ?? new Set<string>();
+    set.add(sIn ? e.src_id : e.dst_id);
+    holdingsByEntity.set(entity, set);
+  }
+  const candidates = [...holdingsByEntity.entries()].filter(([, h]) => h.size >= 2);
+
+  // Only promote node TYPES worth tracking (a company/sector/theme/product/commodity — not a news node).
+  let discovered = 0;
+  if (candidates.length > 0) {
+    const { data: nodes } = await supabase
+      .from("nodes")
+      .select("id, type")
+      .eq("graph_id", graphId)
+      .in("id", candidates.map(([id]) => id));
+    const typeById = new Map((nodes ?? []).map((n) => [n.id, n.type]));
+    const nowIso = new Date(nowMs).toISOString();
+    for (const [entity, h] of candidates) {
+      if (!AUTO_TRACK_TYPES.has(typeById.get(entity) ?? "")) continue;
+      const { error } = await supabase.from("tracked_entities").upsert(
+        { graph_id: graphId, node_id: entity, kind: "discovered", source: "auto", candidate_status: "candidate", score: h.size, last_surfaced_at: nowIso },
+        { onConflict: "graph_id,node_id" },
+      );
+      if (!error) discovered += 1;
+    }
+  }
+
+  return { discovered, dropped };
+}
+
 /** Run the daily fetch→graph pipeline for one graph. Returns a summary (the route also sends the
  *  brief afterwards via sendDigest). Always attempts every step; per-call failures degrade. */
 export async function runDailyForGraph(supabase: Client, graphId: string, deps: DailyDeps): Promise<DailySummary> {
@@ -220,6 +334,41 @@ export async function runDailyForGraph(supabase: Client, graphId: string, deps: 
   const drain = await drainPending(supabase, deps.worker);
   const mentionsLinked = await linkNewsMentions(supabase, graphId, runStartIso);
 
+  // Living-graph upkeep, isolated so a failure never aborts the fetch/brief.
+  let archivedNews = 0;
+  try {
+    archivedNews = await archiveStaleNews(supabase, graphId, deps.nowMs);
+  } catch (e) {
+    reportError(e, { scope: "runDailyForGraph.archive", graph: graphId });
+  }
+  let pruned = false;
+  try {
+    const { error } = await supabase.rpc("prune_snapshots", { p_graph_id: graphId });
+    if (error) throw new Error(error.message);
+    pruned = true;
+  } catch (e) {
+    reportError(e, { scope: "runDailyForGraph.prune", graph: graphId });
+  }
+
+  // Auto-discovery: grow the watch-list from the graph's own connections (candidates only — never fetched).
+  let discovered = 0;
+  try {
+    discovered = (await detectConnections(supabase, graphId, deps.nowMs)).discovered;
+  } catch (e) {
+    reportError(e, { scope: "runDailyForGraph.detectConnections", graph: graphId });
+  }
+
+  // Strict thesis-judge over the freshest evidence (bounded Sonnet cost). Only when a judge is wired.
+  let thesesJudged = 0;
+  if (deps.judge) {
+    try {
+      const judged = await judgeTheses(supabase, graphId, { judge: deps.judge, nowMs: deps.nowMs });
+      thesesJudged = judged.length;
+    } catch (e) {
+      reportError(e, { scope: "runDailyForGraph.judge", graph: graphId });
+    }
+  }
+
   return {
     graphId,
     trackedCompanies: companies.length,
@@ -228,5 +377,9 @@ export async function runDailyForGraph(supabase: Client, graphId: string, deps: 
     newsSkipped: skipped,
     drained: drain.processed,
     mentionsLinked,
+    archivedNews,
+    pruned,
+    thesesJudged,
+    discovered,
   };
 }
