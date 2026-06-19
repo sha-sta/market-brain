@@ -16,6 +16,11 @@ type Client = Awaited<ReturnType<typeof createClient>>;
 type Kind = "owned" | "watchlist" | "theme";
 const KINDS: Kind[] = ["owned", "watchlist", "theme"];
 
+// Expected, user-facing outcomes are RETURNED (not thrown): a thrown Error in a server action is
+// redacted to a generic "Server Components render" message in production, which would hide the real
+// reason (e.g. "not in your graph yet") from the user. The client renders `message` inline instead.
+export type FollowResult = { ok: true } | { ok: false; message: string };
+
 async function resolveNode(supabase: Client, graphId: string, tickerOrName: string): Promise<string | null> {
   const t = normTicker(tickerOrName);
   if (t) {
@@ -28,28 +33,32 @@ async function resolveNode(supabase: Client, graphId: string, tickerOrName: stri
   return data?.id ?? null;
 }
 
-export async function followEntity(formData: FormData): Promise<void> {
+export async function followEntity(formData: FormData): Promise<FollowResult> {
   await requireActive();
   const graphId = await getCurrentGraphId();
   const supabase = await createClient();
 
   const name = String(formData.get("entity") ?? "").trim();
-  if (!name) throw new Error("Enter a ticker, company, or theme to follow.");
+  if (!name) return { ok: false, message: "Enter a ticker, company, or theme to follow." };
   const kindRaw = String(formData.get("kind") ?? "watchlist");
   const kind: Kind = KINDS.includes(kindRaw as Kind) ? (kindRaw as Kind) : "watchlist";
 
   const nodeId = await resolveNode(supabase, graphId, name);
   if (!nodeId) {
-    throw new Error(`No "${name}" in your graph yet. Dump a note about it or run a research request to add it.`);
+    return {
+      ok: false,
+      message: `No "${name}" in your graph yet. Add it first by dumping a note about it (Dump) or running a research request (Research), then follow it.`,
+    };
   }
   const { error } = await supabase
     .from("tracked_entities")
     .upsert({ graph_id: graphId, node_id: nodeId, kind, source: "manual", candidate_status: "active" }, { onConflict: "graph_id,node_id" });
   if (error) {
     reportError(error, { scope: "followEntity" }); // log details server-side; don't leak schema to the client
-    throw new Error("Couldn't follow that. Please try again.");
+    return { ok: false, message: "Couldn't follow that. Please try again." };
   }
   revalidatePath("/follow");
+  return { ok: true };
 }
 
 export async function unfollowEntity(formData: FormData): Promise<void> {

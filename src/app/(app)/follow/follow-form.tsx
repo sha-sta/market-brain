@@ -17,10 +17,11 @@ export function FollowForm() {
         setError(null);
         startTransition(async () => {
           try {
-            await followEntity(fd);
-            formRef.current?.reset();
-          } catch (e) {
-            setError(e instanceof Error ? e.message : "Failed to follow");
+            const res = await followEntity(fd);
+            if (res.ok) formRef.current?.reset();
+            else setError(res.message);
+          } catch {
+            setError("Something went wrong. Please try again.");
           }
         });
       }}
