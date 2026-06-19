@@ -7,6 +7,7 @@ import type { NodeType } from "@/server/normalize/types";
 import { upsertEdge, writeNodeData } from "@/server/normalize/upsert";
 import { archiveCutoffMs, asOfFromData } from "@/server/normalize/lifecycle";
 import { judgeTheses, type Judge } from "@/server/critic/thesis-judge";
+import { reconcileThesisSupersede } from "@/server/critic/thesis-supersede";
 import { CONFIDENCE_WEAK } from "@/server/normalize/relations";
 import { canonicalizeUrl, normTicker } from "@/server/normalize/dedupe";
 import { reportError } from "@/lib/observability";
@@ -50,6 +51,7 @@ export interface DailySummary {
   deleted: number; // long-archived chronological nodes hard-deleted this run (reference-guarded)
   pruned: boolean;
   thesesJudged: number;
+  thesesSuperseded: number; // freshly-added theses that auto-replaced a prior near-restatement
   discovered: number;
 }
 
@@ -403,6 +405,19 @@ export async function runDailyForGraph(supabase: Client, graphId: string, deps: 
     }
   }
 
+  // Replace a standing opinion when a freshly-added thesis near-restates it (high-confidence, reversible).
+  // Time-boxed under the same deadline so it never starves the digest; isolated so a failure can't abort.
+  let thesesSuperseded = 0;
+  try {
+    thesesSuperseded = await reconcileThesisSupersede(supabase, graphId, {
+      sinceIso: runStartIso,
+      embed: (t) => deps.worker.embed([t]).then((r) => r[0] ?? []),
+      deadlineMs: deps.deadlineMs,
+    });
+  } catch (e) {
+    reportError(e, { scope: "runDailyForGraph.thesisSupersede", graph: graphId });
+  }
+
   return {
     graphId,
     trackedCompanies: companies.length,
@@ -415,6 +430,7 @@ export async function runDailyForGraph(supabase: Client, graphId: string, deps: 
     deleted,
     pruned,
     thesesJudged,
+    thesesSuperseded,
     discovered,
   };
 }
