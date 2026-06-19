@@ -16,9 +16,11 @@ brief.
 
 ## Architecture at a glance
 
-- **Graph** — `nodes` (company, person, sector, theme, news, filing, thesis, note) + `edges` with an
-  evidence-gated `assertable` column. A news article and a hand-written note are **both just
-  `raw_uploads` rows** the worker turns into a node + edges. The daily cron *manufactures* news rows.
+- **Graph** — 15 typed `nodes` (company, person, sector, theme, news, filing, thesis, catalyst, risk,
+  signal, macro_factor, product, commodity, organization, note) + `edges` with an evidence-gated
+  `assertable` column. Each node carries a `lifecycle` (`active`/`stale`/`archived`/`superseded`). A
+  news article and a hand-written note are **both just `raw_uploads` rows** the worker turns into a node
+  + edges. The daily cron *manufactures* news rows.
 - **Dedupe** — ticker / CIK / canonical-URL / accession hard keys. A ticker match overrides name fuzz;
   a ticker *conflict* blocks a merge however similar the names (the fabricated-ticker guard).
 - **Market adapters** (`src/server/market/*`) — Finnhub (quotes + news, primary), FMP (profile /
@@ -26,11 +28,46 @@ brief.
   call degrades to `[]`/`null`; a key being unset just makes that source dormant. Private companies
   (Anthropic, SpaceX) have no quote API, so callers guard on `is_public`.
 - **Daily cron** (`/api/cron/daily`) — one job (Vercel Hobby allows 1/day) does fetch **and** brief:
-  prices → `price_snapshots`, news → `raw_uploads` → drain → `news` nodes → ticker→holding `mentions`
-  edges → compose + send the brief.
-- **Brief** (`src/server/digest/*`) — graph deltas (movers, ranked news, filings, alerts, and the
-  cross-holding connection-surfacing trick) → a pure `composeBrief` (LLM intro injected; template-only
-  fallback) → Resend → archived in `digest_log` (which also powers the in-app `/brief`).
+  prices → `price_snapshots`, news (capped per company) → `raw_uploads` → drain → `news` nodes →
+  ticker→holding `mentions` edges → living-graph upkeep (decay/delete, auto-discovery, gap-fill,
+  thesis-judge, thesis-supersede) → compose + send the brief. The LLM-heavy steps are **time-boxed**
+  against a soft deadline that reserves the tail of the 300s budget for the send, so the email never
+  gets starved.
+- **Brief** (`src/server/digest/*`) — graph deltas (movers, ranked news, filings, alerts, thesis checks,
+  and the cross-holding connection-surfacing trick) → a pure `composeBrief` (LLM intro injected;
+  template-only fallback) → Gmail SMTP (preferred) or Resend → archived in `digest_log` (which also
+  powers the in-app `/brief`).
+
+## Living graph (self-updating, lean)
+
+The graph keeps itself **current and small** without manual gardening. Every mutation routes through the
+single `writeNodeData` choke-point, so each one snapshots a reversible `node_revisions` row and re-embeds
+only when the embedded text actually changed.
+
+- **Tiered decay + reference-guarded hard delete.** The extractor assigns each chronological node
+  (news / catalyst / signal) a permanence `_tier` — `ephemeral` (days) → `routine` (weeks) → `notable`
+  (months) → `landmark` (never) — biased to "keep longer when unsure." `decayWindow(type, tier)`
+  (`server/normalize/lifecycle.ts`) maps that to an **archive** window (soft-hide, recoverable) and a
+  later **delete** window. A SQL function (`prune_archived_nodes`) then *actually deletes* long-archived
+  nodes to reclaim the row + its pgvector embedding on the free-tier DB — but it is **reference-aware**:
+  it never deletes a node that is evidence for a live thesis or is linked to an active tracked entity.
+  Landmark events and filings (the primary record) never delete; theses, notes, and structural nodes
+  (company/person/sector/…) never decay at all. The SQL delete windows are kept byte-honest with the TS
+  map by a sync-guard unit test. Archived nodes are browsable + restorable at `/archived`.
+- **Thesis lifecycle.** Theses are standing *opinions*, so they're **replaced, never aged out**. When a
+  freshly-added thesis near-restates an existing one about the same subject (embedding similarity ≥ 0.92),
+  the old one is auto-marked `superseded` (pointing at the new via `superseded_by`) and the strict critic
+  stops re-judging it. `/theses` lists each thesis with its verdict and an add-thesis box that pipes text
+  through the **same** dump → extract pipeline as everything else (no bespoke insert path).
+- **Fact reconciliation.** When the source text explicitly states a fact changed on a *permanent* node
+  (a CEO leaves, a company renames, guidance is revised), the extractor emits a `corrections` entry —
+  **no extra LLM call**, it rides the extraction already running. High-confidence + verbatim-verified
+  changes auto-apply; mid-confidence ones queue for review (`correction_queue`). A rename appends
+  `former_name`/`aliases` and **never** overwrites the dedupe hard-key `name`; a role change retires the
+  now-false `insider_of` edge.
+- **Structural gap-fill.** Once a week, a bounded, deadline-guarded pass grounds essential identity facts
+  (cik / exchange / website) on tracked companies via the market adapters (no LLM) — adding the durable
+  facts the graph is *missing* rather than piling on more news.
 
 ## Local development
 
@@ -92,11 +129,17 @@ dormant (the brief falls back to template-only).
    curl -H "Authorization: Bearer $CRON_SECRET" https://<your-app>/api/cron/daily
    ```
 
-## Tests
+- **Unit** (`tests/unit/`, ~144) — schemas, dedupe (ticker hard-key + conflict, URL canonicalization),
+  relations (evidence/assertable), critic calibration, rank, compose (section selection/empty-state),
+  tags, prompt guardrails, **tiered-decay windows + the SQL↔TS sync-guard**, the **time-box deadline**,
+  **thesis-supersede rules**, **fact-reconciliation gating**, and the **gap-fill throttle**. Pure, fast.
+- **Integration** (`tests/integration/`, ~56) — against the isolated test Supabase with stubbed
+  market/extractor/embedder/judge: the daily cron, **tiered decay + reference-guarded hard delete**
+  (incl. every protection guard), **thesis supersede + the judge ignoring superseded theses**, **fact
+  reconciliation** (apply/queue/drop, rename, edge-expiry), **gap-fill**, and the headline guarantee
+  that **a slow judge can't starve the digest send**.
+- **E2e** (`tests/e2e/`, 6) — the auth gate (gated routes redirect to sign-in); cron routes fail closed
+  (a bad `CRON_SECRET` → 401 JSON, not an auth redirect).
 
-- **Unit** (`tests/unit/`) — schemas, dedupe (ticker hard-key + conflict, URL canonicalization),
-  relations (evidence/assertable), rank, P&L/allocation, compose (section selection/empty-state), tags,
-  prompt guardrails. Pure, fast, every push.
-- **Integration** (`tests/integration/`) — the daily cron against the isolated test Supabase with
-  stubbed market/extractor/embedder + a fake Resend.
-- **E2e** (`tests/e2e/`) — auth gate; `/api/cron/daily` with a bad secret → 401.
+The local ship gate is `npm run build` + `npm test` green; integration + e2e are run before any
+lifecycle-touching change.
