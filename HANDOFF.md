@@ -85,12 +85,56 @@ thesis-judge (`subgraph.ts:57`) + RAG exclude archived nodes → a thesis silent
 Guard archival on "no incoming edge from an active thesis / tracked entity," or extend the window for
 referenced news. (Minor: `lifecycle='stale'` and whole-node `superseded` are defined but never written.)
 
+### Retention: HARD-DELETE + importance-tiered decay (free-plan lean-DB requirement)
+Motivation: Supabase **free tier ≈ 500MB**, and every node carries a pgvector embedding (~6KB+ each),
+so 45 days of accumulating-then-only-hidden news is real, growing cost. Two changes:
+
+**1. Actually DELETE decayed chronological nodes (don't just hide them).** Today `archiveStaleNews` only
+flips `lifecycle='archived'` — the row + embedding stay forever. Switch to (or add) a hard prune.
+**Mechanically safe — deletion cascades are already wired:** `edges.src_id/dst_id`, `node_revisions`,
+`price_snapshots`, `metric_snapshots`, and `node_similarity` all have `on delete cascade` on the node
+FK; `superseded_by` is `on delete set null`. So `delete from public.nodes where …` cleanly reclaims
+everything. The ONLY risk is **semantic**: deleting a node that's evidence for an active thesis
+(`confirms_thesis`/`challenges_thesis` edge) or still linked to an active tracked entity permanently
+destroys that evidence. So deletion MUST be **reference-aware** (this supersedes — and is stricter than
+— the archival bug above). Recommended shape: keep `archived` as a short soft-hide grace, then a
+reference-guarded prune deletes archived chronological nodes past a (tier-scaled) delete window. Do it
+in a `service_role` SQL function like `prune_snapshots`, called from the daily run.
+
+**2. Importance/decay TIERS that scale how fast a node decays.** A primitive version already exists:
+`news.materiality` (high/med/low) already drives 45d vs 120d (`lifecycle.ts:newsArchiveCutoffMs`), and
+the extractor already emits it. Generalize this:
+- Add a top **"landmark / permanent"** tier (never auto-archive/delete) for rare, durable, market-
+  defining events — the user's example: "SpaceX acquires Cursor for $60B" must NOT be forgotten, vs a
+  routine price-blip article that should decay in days. So the levels become e.g.
+  `ephemeral (~7d) → routine (~30d) → notable (~180d) → landmark (never)`.
+- Teach the **extractor prompt** (`server/normalize/prompt.ts`) + the enum (`schemas.ts`) to assign the
+  tier deliberately (it currently judges `materiality` already), with explicit guidance + examples for
+  the landmark tier so it's used sparingly.
+- Generalize the windows in `lifecycle.ts`: replace `newsArchiveCutoffMs(materiality)` with a
+  `decayWindow(type, tier)` → {archive days, delete days, or never} map.
+
+**Which node types get tiered decay (identify the chronological ones; structural ones never decay):**
+- **news** — `materiality` (exists) → the prime target.
+- **catalyst** — `importance` (exists) + `event_date`: decays only AFTER its event date passes (a future
+  catalyst is always kept); a passed low-importance catalyst decays, a landmark one persists.
+- **signal** — dated `observed_at` and explicitly designed to SUPERSEDE prior readings → a superseded /
+  stale signal is the soonest delete candidate.
+- **filing** — by `form_type` (a 10-K/10-Q stays relevant ~a year+, an 8-K/Form-4 far less).
+- **Structural types keep forever** (no time-decay): company, person, sector, theme, product, commodity,
+  organization, thesis, macro_factor, risk, note. (risk/macro_factor are persistent context.)
+Note `risk.severity/likelihood` and `thesis.conviction` enums already exist — reuse the same tiering
+vocabulary for consistency, even though those types don't time-decay.
+
 ### Open design questions for the plan to resolve
 - Gap-fill heuristic: which fields/edges are "essential" per node type, and how to detect-cheaply.
-- Per-company news cap (e.g. top N by materiality?) and the ingest materiality threshold.
-- Archival window (shorten from 45d?) and whether to HARD-DELETE long-archived news (reclaim embeddings).
+- Per-company news cap (e.g. top N by materiality?) and the ingest materiality/quality threshold.
+- The tier → {archive window, delete window} map, and the exact "landmark/never" criteria for the prompt.
+- Reference-guard for deletion: never delete a node cited by an active thesis or linked to an active
+  tracked entity — define precisely (which edge types / lifecycle states protect a node from prune).
+- Soft-hide grace before hard delete, or delete directly? (recoverability vs DB space.)
 - Reorder digest-before-judge vs time-box the judge — which best guarantees the email sends.
-- Does research need the same caps?
+- Does research need the same caps + tiering on what it drains in?
 
 ### Verification
 - Daily run is integration-tested with stubs: `tests/integration/` (search "daily"/"tracking"). Extend
