@@ -7,7 +7,7 @@ and it produces strict, non-sycophantic theses.
 **Posture: aggregate & surface only.** Task-specific state + the current next step live in `HANDOFF.md`.
 
 ## Deploy / branch model
-- **`main` is prod.** Vercel auto-deploys `main` on every push (prod alias `dj-stocks.vercel.app`,
+- **`main` is prod.** Vercel auto-deploys `main` on every push (prod alias `<prod-url>`,
   repo `github.com/sha-sta/market-brain`). Shipping = merge to `main` + push. No CI; the gate is local
   `npm run build` + `npm test` green.
 - Commit/push only when asked; branch first if on `main`. No `Co-Authored-By` lines (user preference).
@@ -15,7 +15,7 @@ and it produces strict, non-sycophantic theses.
   (Bearer `CRON_SECRET`, fail-closed). It does fetch + brief together in ONE ≤300s invocation.
 
 ## Supabase
-- Cloud project ref **`nrzyfqhfbseihxzwcvns`**; migrations **`0001–0045` are pushed** (`0043–0045` =
+- Cloud project ref **`<supabase-ref>`**; migrations **`0001–0045` are pushed** (`0043–0045` =
   `prune_archived_nodes` hard-delete, `correction_queue`, `graphs.last_gap_fill_at`). Christian is
   active+admin. Google OAuth lives in the Supabase dashboard (NOT Vercel env).
 - **Local stacks are isolated from the sibling `brain` project**: `project_id "marketbrain"`, ports
