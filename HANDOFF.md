@@ -33,22 +33,75 @@ story is legitimate):**
 - Consider the `ecc:opensource-pipeline` skill (forker → sanitizer → packager) to automate sanitize +
   generate LICENSE / CONTRIBUTING / setup.
 
-## Next session — Task B: deep research — what was UNIQUELY done?
-Goal: figure out, honestly, what's genuinely novel vs careful-application-of-known-patterns, and position
-the README/announcement against real prior art. Candidate differentiators to verify, and the closest
-prior art to compare against:
-- **No-advice + adversarial thesis critic** (deterministic `enforceFloor` anti-sycophancy) in a *market*
-  tool — most AI-investing tools GIVE buy/sell calls. Verify against FinChat/Fintool, AlphaSense,
-  Perplexity Finance, BloombergGPT, the "AI stock picker" SaaS crowd.
-- **Temporal/living KG** — tiered decay + reference-guarded hard-delete + thesis-supersede + fact
-  reconciliation. **Closest neighbor: Zep/Graphiti (temporal KG with edge invalidation)** and Microsoft
-  **GraphRAG**, LlamaIndex KG, Cognee, txtai. Compare honestly — Graphiti overlaps the most.
-- **Evidence-gated assertable edges** (verbatim-quote verification before a claim is assertable) +
-  **build-failing sync invariants** (triple-sourced assertable; double-sourced decay windows) — an
-  anti-hallucination + correctness-discipline angle.
-- **Fact reconciliation that rides the extraction envelope at ZERO extra LLM cost**, and **lifecycle
-  tuned for a free-tier embedded-vector DB** — cost-engineering angle.
-Deliverable: a short "what's novel / what exists already / who this is for" section, with citations.
+## Next session — Task B: DEEP RESEARCH — what was uniquely done? (self-contained brief)
+
+> This section is written so a fresh session can plan the research straight from this doc. Run it with
+> the `deep-research` skill (fan-out web search → fetch sources → **adversarially verify** each novelty
+> claim → cited synthesis). House rule: this is a NON-SYCOPHANCY project — do not overclaim. For every
+> "we do X," the burden is to find the closest existing thing that already does X and rate it
+> **novel / partial-overlap / already-exists**, with citations. "Novel synthesis" is an honest verdict;
+> "first of its kind" must be earned.
+
+### Objective
+Produce an honest, cited assessment of (a) what in MarketBrain is genuinely novel vs careful application
+of known patterns, (b) what already exists and how close it is, and (c) who this is actually for. Output
+feeds a README "Prior art & what's different" section (+ comparison table) and any launch/announcement.
+
+### Research questions
+1. Does an **auto-updating personal knowledge graph over market/news data** already exist as an OSS
+   project or product? How close?
+2. Does anything pair a KG/brief with an **explicitly non-advisory, adversarial thesis critic** (attacks
+   the user's own thesis, refuses buy/sell)? Most finance LLMs do the opposite — verify.
+3. How does the **living-graph lifecycle** (tiered decay → reference-guarded HARD-delete, whole-node
+   supersede, cross-node fact reconciliation) compare to temporal-KG frameworks that already invalidate/
+   expire edges (esp. Zep/Graphiti)?
+4. Is **evidence-gated assertability** (a claim becomes assertable only if its quote verifies verbatim
+   against source) a recognized pattern, or unusual rigor?
+5. Are the **build-failing cross-layer invariants** (triple-sourced assertable vocab; double-sourced
+   decay windows) a known practice for LLM-app correctness, or a distinctive discipline?
+6. Honest bar: as a **software-engineering portfolio piece**, is this above/at/below the typical
+   "impressive OSS LLM app"? What would a skeptical senior engineer say is merely table-stakes here?
+
+### Candidate differentiators = hypotheses to test (grounded in the code so the planner can verify each)
+- **Non-advisory + adversarial critic.** `server/critic/*` — `enforceFloor` (`calibration.ts`)
+  deterministically demotes a verdict to what verified evidence supports; the no-buy/sell vocab is a hard
+  invariant (`CLAUDE.md`). Closest prior art to beat: FinChat/Fintool, AlphaSense, Perplexity Finance,
+  BloombergGPT, the "AI stock-picker" SaaS crowd, and LLM-as-judge/eval frameworks (do any *self-demote*?).
+- **Temporal/living KG.** `server/normalize/lifecycle.ts` (`decayWindow`), `market/daily.ts`
+  (`decayStaleNodes`), migration `0043 prune_archived_nodes` (reference-guarded), `critic/thesis-supersede.ts`,
+  `normalize/reconcile.ts`. **Closest neighbor: Zep / Graphiti (temporal KG with edge invalidation)** —
+  compare in depth. Also Microsoft GraphRAG, LlamaIndex KG, Cognee, txtai, Mem0. Key question: do any do
+  *reference-aware hard DELETE* (reclaim storage) vs only soft-invalidate?
+- **Evidence-gated assertable edges + verbatim grounding.** `normalize/relations.ts` (`isAssertable`,
+  `verifyEvidence`), the thesis-judge edge grounding. Compare to GraphRAG/claim-extraction + citation/
+  attribution and hallucination-guard literature.
+- **Zero-extra-cost fact reconciliation.** `normalize/reconcile.ts` rides the SAME extraction envelope
+  (no extra LLM call) to correct permanent nodes. Compare to entity-resolution / KG-update pipelines.
+- **Free-tier-tuned lifecycle + cost engineering.** Tiered hard-delete sized to a ~500MB Supabase free
+  tier + ~6KB embeddings; one Hobby cron; time-boxed run reserving digest budget. Angle: doing a
+  living KG within hard free-tier limits.
+- **Cross-layer build-failing invariants.** `tests/unit/relations.test.ts` (assertable triple-source),
+  `tests/unit/lifecycle.test.ts` (decay-window SQL↔TS sync-guard). Angle: correctness discipline.
+
+### Prior art to investigate (build a comparison matrix; for each: what it does, overlap, gaps vs us)
+- **Temporal/agentic KG frameworks:** Zep/Graphiti, Microsoft GraphRAG, LlamaIndex Knowledge Graph,
+  Cognee, txtai, Mem0, Letta/MemGPT (memory).
+- **AI investing/research tools:** FinChat/Fintool, AlphaSense, Perplexity Finance, BloombergGPT,
+  Kavout/Danelfin/"AI stock picker" SaaS, openbb (OSS).
+- **Personal-knowledge / "second brain":** Obsidian, Logseq, Roam, Mem, Reflect — manual vs auto-growing.
+- **LLM-judge / anti-sycophancy:** eval frameworks + any self-calibrating/floor-enforcing critics.
+
+### Method
+Use `deep-research`. Fan out one search thread per prior-art cluster above; deep-read the 2–3 closest
+matches (esp. Graphiti + one finance LLM); for EACH candidate differentiator, find the nearest existing
+implementation and rate novel/partial/exists with a one-line justification + citation. Then a synthesis
+pass: the honest novelty verdict, the "who it's for," and the skeptic's rebuttal.
+
+### Deliverable
+1. A `RESEARCH.md` (or a section) — "What's novel · what already exists · who this is for," with a
+   comparison table (MarketBrain vs Graphiti vs GraphRAG vs a finance LLM) and citations.
+2. A tightened README "Prior art & what's different" paragraph (honest framing, links).
+3. A one-line verdict on the portfolio-strength question (#6), with the strongest counterargument noted.
 
 ## Pending setup (likely already done — confirm)
 - Appa approved at `/admin`; graph seeded (seed prompt: git `1c8bf38`). The user reports it works, so
