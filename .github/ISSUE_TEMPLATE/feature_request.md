@@ -16,5 +16,5 @@ A clear description of what you'd like to happen.
 Other approaches you thought about.
 
 **Notes**
-MarketBrain is deliberately **non-advisory** — it surfaces facts and never recommends buy/sell/hold.
+MarketBrain is deliberately **non-advisory**: it surfaces facts and never recommends buy/sell/hold.
 Please keep that in mind for feature ideas.

@@ -1,6 +1,6 @@
 # MarketBrain
 
-A private **stock-market research knowledge graph**, originally built as a Father's Day gift for my dad —
+A private **stock-market research knowledge graph**, originally built as a Father's Day gift for my dad,
 a casual-but-serious investor who researches by reading the news and forming his own view. It is **not**
 a stock tracker: it's a graph that grows organically around the names, themes, and theses you care about,
 with a **morning email brief** ("what changed on your names + what to look out for") as the flagship.
@@ -14,19 +14,16 @@ auth/RLS, the force-graph viz, and the Ask/RAG module all carry over. What's dom
 node/edge **types**, schemas, the extraction prompt, the market data adapters, the daily cron, and the
 brief.
 
-## Prior art & what's different
+## Who it's for
 
-MarketBrain is an honest **synthesis**, not a new mechanism — every ingredient has prior art, but no single shipped project bundles them. Closest neighbors: [Graphiti/Zep](https://github.com/getzep/graphiti) (temporal KG memory), [Microsoft GraphRAG](https://microsoft.github.io/graphrag/index/architecture/) (LLM-extracted graph), and [Perplexity Finance](https://www.perplexity.ai/enterprise/use-cases/finance) (finance research). Per differentiator:
+A single investor who tracks a watchlist of names and industries and wants research that maintains itself: the graph grows from a daily feed, drops what no longer matters, corrects facts when sources change, and emails a short brief each weekday morning. Typical uses:
 
-- **Self-updating fact-reconciling memory** — *already exists* ([Mem0](https://docs.mem0.ai/core-concepts/memory-operations/update), same Postgres+pgvector stack). Not a differentiator.
-- **Non-advisory adversarial thesis critic** — *already exists* ([open-source devilsadvocate](https://github.com/unicodeveloper/devilsadvocate); [LinqAlpha](https://aws.amazon.com/blogs/machine-learning/how-linqalpha-assesses-investment-theses-using-devils-advocate-on-amazon-bedrock/)). Cited, not claimed.
-- **Deterministic demote-only verdict floor** — the *pattern* exists ([DeepEval DAG](https://deepeval.com/docs/metrics-dag)); the asymmetric conservative twist is uncommon.
-- **Verbatim-substring evidence gate** — technique exists ([Deterministic Quoting](https://mattyyeung.github.io/deterministic-quoting)); the edge-level `assertable` packaging is the thin delta.
-- **Reference-guarded hard-delete to reclaim storage** — *partial-overlap*; the opposite of Graphiti's invalidate-only philosophy. The domain-semantic guard is the defensible bit.
+- Keep a living map of the companies, people, sectors, and themes you follow, and how they connect.
+- Get a daily brief of what changed on those names (price moves, news, filings, thesis checks).
+- Write down a thesis and have it tested against the evidence in the graph, with no buy/sell advice.
+- Ask the graph a question, or queue a deeper research run on a topic.
 
-Why not Graphiti? It **requires a graph DB** (no Postgres driver) and **never deletes** by design — incompatible with this project's free-tier, hard-delete premise.
-
-Full citations and the skeptic's portfolio assessment in [RESEARCH.md](./RESEARCH.md).
+For how MarketBrain compares to similar tools (Graphiti, GraphRAG, Perplexity Finance), see [RESEARCH.md](./RESEARCH.md).
 
 ## Architecture at a glance
 
@@ -135,7 +132,7 @@ dormant (the brief falls back to template-only).
 4. **Email**: preferred (no domain): enable 2-Step Verification on a Gmail account, generate an App
    Password (Google Account → Security → App passwords), and set `GMAIL_USER` + `GMAIL_APP_PASSWORD`
    (+ `DIGEST_TO` = the recipient's email). Delivers to any inbox. (Alternative: set `RESEND_API_KEY` +
-   `RESEND_FROM` instead — but Resend needs a verified sending domain to reach arbitrary recipients.)
+   `RESEND_FROM` instead, but Resend needs a verified sending domain to reach arbitrary recipients.)
 5. **Verify before relying on the schedule**: hit the cron once manually with the secret and confirm a
    real brief lands:
    ```bash

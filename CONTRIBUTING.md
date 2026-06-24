@@ -18,7 +18,7 @@ See the README for the full local-development and environment-variable reference
 
 ## The quality gate
 
-There is **no remote build gate** — the bar is a green local run before you push:
+There is **no remote build gate**. The bar is a green local run before you push:
 
 ```bash
 npm run lint
@@ -28,7 +28,7 @@ npm test                        # 144 unit tests
 ```
 
 CI runs lint + typecheck + unit tests on every push and PR. Integration (`npm run test:integration`,
-real test DB) and e2e (`npm run e2e`) are run locally — they need a database and aren't part of CI.
+real test DB) and e2e (`npm run e2e`) are run locally; they need a database and aren't part of CI.
 Do not bypass commit hooks (`--no-verify`) or push a red build.
 
 ## Project invariants (please don't break these)
@@ -47,5 +47,5 @@ See `CLAUDE.md` for the full list of project invariants.
 - Conventional-commit style titles under ~70 chars: `feat:`, `fix:`, `refactor:`, `test:`, `docs:`,
   `chore:`. The body should explain *why*, not *what*.
 - Add tests for new features (unit minimum; e2e for user-facing flows).
-- Keep PRs focused — a bug fix shouldn't also refactor unrelated code.
+- Keep PRs focused: a bug fix shouldn't also refactor unrelated code.
 - Open PRs against `main`.

@@ -1,10 +1,10 @@
-# MarketBrain — project invariants (read every session)
+# MarketBrain: project invariants (read every session)
 
-A private **stock-market research knowledge graph** — a Father's Day gift. A self-updating research
+A private **stock-market research knowledge graph**: a Father's Day gift. A self-updating research
 brain: the user tracks names/industries; a daily cron + on-demand research grow and amend the graph
 (tiered decay + reference-guarded hard-delete, fact reconciliation, thesis supersede, re-judge theses),
 and it produces strict, non-sycophantic theses.
-**Posture: aggregate & surface only.** Task-specific state + the current next step live in `HANDOFF.md`.
+**Posture: aggregate & surface only.** Project overview lives in `README.md`; this file holds the durable invariants.
 
 ## Deploy / branch model
 - **`main` is prod.** Vercel auto-deploys `main` on every push (prod alias `<prod-url>`,
@@ -23,26 +23,26 @@ and it produces strict, non-sycophantic theses.
 - **`npm run db:types` runs from `/tmp` on purpose** (Supabase CLI 2.106 chokes on `config.toml`'s
   `env(...)`). Don't "simplify" it back.
 
-## Hard invariants — violating any of these silently breaks correctness
+## Hard invariants: violating any of these silently breaks correctness
 - **No buy/sell/hold/recommend vocabulary anywhere** (UI, prompts, email). The graph surfaces; the
   reader decides. There is deliberately no buy/sell relation.
-- **`edges.assertable` is triple-sourced** — the SQL generated-column literal (latest
+- **`edges.assertable` is triple-sourced**: the SQL generated-column literal (latest
   `*_finance_assertable*.sql`), `STRONG_RELATIONS` (`server/normalize/relations.ts`), and
   `isAssertable()`. Keep byte-identical; `tests/unit/relations.test.ts` fails the build on drift.
-- **The hard-delete windows are double-sourced** — the per-(type,tier) `deleteDays` in `decayWindow()`
+- **The hard-delete windows are double-sourced**: the per-(type,tier) `deleteDays` in `decayWindow()`
   (`lifecycle.ts`) and the `values` table in `prune_archived_nodes` (`0043_*.sql`) MUST match;
   `tests/unit/lifecycle.test.ts`'s sync-guard fails the build on drift.
-- **`tracked_entities.candidate_status='active'` is the cost firewall** — auto-discovered *candidates*
+- **`tracked_entities.candidate_status='active'` is the cost firewall**: auto-discovered *candidates*
   are NEVER price/news-fetched. Every reader in the daily path must filter `candidate_status='active'`.
-- **`writeNodeData` (`server/normalize/upsert.ts`) is the single node-mutation choke-point** — it
+- **`writeNodeData` (`server/normalize/upsert.ts`) is the single node-mutation choke-point**: it
   snapshots a `node_revisions` row + re-embeds (only when embedded text changed). Use it for any node
   data/lifecycle write; never `update` nodes directly.
-- **Web research is SSRF-sensitive** — `isPublicHttpUrl` blocks raw IPv6 + private ranges; `getText`
+- **Web research is SSRF-sensitive**: `isPublicHttpUrl` blocks raw IPv6 + private ranges; `getText`
   uses `redirect:"error"`. Web content is untrusted; don't loosen.
-- **GRANTs ≠ RLS** — every new table needs an explicit `grant` (+ `service_role` for cron/route writes)
+- **GRANTs ≠ RLS**: every new table needs an explicit `grant` (+ `service_role` for cron/route writes)
   or it 403s. RLS on every table.
 - **AI Gateway needs PAID credits.** Private companies have no quote API (guard on `is_public`).
-- **Server actions: RETURN `{ ok, message }` for expected errors, never `throw`** — a thrown Error in a
+- **Server actions: RETURN `{ ok, message }` for expected errors, never `throw`**: a thrown Error in a
   prod server action is redacted to a generic "Server Components render" message, hiding the real
   reason. (See `follow/actions.ts` / `research/actions.ts` for the pattern.)
 
@@ -57,7 +57,7 @@ and it produces strict, non-sycophantic theses.
   thesis) or is linked to an `active` tracked entity. Landmark + filing never delete; **thesis/note +
   structural types never decay**. A missing `_tier` falls back to the longest non-landmark window
   ("keep longer when unsure").
-- **Whole-node `superseded` IS used now** — thesis replacement marks the old thesis `lifecycle='superseded'`
+- **Whole-node `superseded` IS used now**: thesis replacement marks the old thesis `lifecycle='superseded'`
   + `superseded_by → new` (`critic/thesis-supersede.ts`); the judge ignores superseded theses. Field-level
   supersede (newer source swaps a narrative field within one node; identity fields never overwritten) is
   unchanged. `stale` is still defined-but-unused.
@@ -66,7 +66,7 @@ and it produces strict, non-sycophantic theses.
   0.6–0.85 queues in `correction_queue`. A rename appends `former_name`/`aliases` (never overwrites
   `name`); a role change deletes the stale `insider_of` edge (edges have no lifecycle column).
 - Reads filter `lifecycle in ('active','stale')`. `/brief` renders **frozen `digest_log.html`** (a
-  stored snapshot, not a live recompose) — `compose.ts` theme changes only affect NEW briefs.
+  stored snapshot, not a live recompose): `compose.ts` theme changes only affect NEW briefs.
 
 ## UI
 - **Single fixed dark theme**, CSS-var driven (`src/app/globals.css`: `--background #0f1113`,
@@ -77,7 +77,7 @@ and it produces strict, non-sycophantic theses.
 
 ## Email
 - The cron sends the brief to whatever **`DIGEST_TO`** is, with **NO account/approval gate**. Sender =
-  Gmail SMTP if `GMAIL_APP_PASSWORD` set, else Resend (**Resend is removed in prod** — Gmail only). Mail
+  Gmail SMTP if `GMAIL_APP_PASSWORD` set, else Resend (**Resend is removed in prod**: Gmail only). Mail
   adapters degrade silently (catch + `reportError`, never throw), so a send failure leaves the brief
   `archived`/`failed` with no surfaced error.
 

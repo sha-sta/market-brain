@@ -2,7 +2,7 @@ name: CI
 
 # Lint + typecheck + unit tests. These need no database, secrets, or network, so they run on every
 # push and PR. The production build runs on Vercel (it needs runtime env), and integration/e2e tests
-# run locally against a real test database — neither is part of CI.
+# run locally against a real test database; neither is part of CI.
 
 on:
   push:
