@@ -22,8 +22,8 @@ export default async function BriefPage() {
       <div className="mx-auto w-full max-w-2xl px-4 py-12 text-center">
         <h1 className="mb-2 text-2xl font-semibold">Morning brief</h1>
         <p className="text-muted">
-          No brief yet. It's composed each weekday morning from what changed on the names you follow, or run the
-          daily cron once to generate today's.
+          No brief yet. It&apos;s composed each weekday morning from what changed on the names you follow, or run the
+          daily cron once to generate today&apos;s.
         </p>
       </div>
     );

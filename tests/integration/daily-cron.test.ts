@@ -134,9 +134,9 @@ describe("daily cron — fetch → graph → brief", () => {
       sent.push(o.subject);
       return { ok: true, id: "fake-1" };
     };
-    const r1 = await sendDigestForGraph(admin, TEST_GRAPH_ID, { sendBrief, to: "dad@local.test", nowMs });
+    const r1 = await sendDigestForGraph(admin, TEST_GRAPH_ID, { sendBrief, to: "user@local.test", nowMs });
     expect(r1.status).toBe("sent");
-    const r2 = await sendDigestForGraph(admin, TEST_GRAPH_ID, { sendBrief, to: "dad@local.test", nowMs });
+    const r2 = await sendDigestForGraph(admin, TEST_GRAPH_ID, { sendBrief, to: "user@local.test", nowMs });
     expect(r2.status).toBe("skipped");
     expect(sent.length).toBe(1);
   });

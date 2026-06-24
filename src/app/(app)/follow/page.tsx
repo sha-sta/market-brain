@@ -8,8 +8,6 @@ import { unfollowEntity, setKind } from "./actions";
 // auto-discovers related names too; this page shows the live (active) tracked set.
 export const dynamic = "force-dynamic";
 
-const KIND_LABEL: Record<string, string> = { owned: "owned", watchlist: "watchlist", theme: "theme", discovered: "discovered" };
-
 export default async function FollowPage() {
   await requireActive();
   const graphId = await getCurrentGraphId();

@@ -119,7 +119,7 @@ export const resendKey = (): string | undefined => optionalString(process.env, "
 /** Verified "From" address for the brief (falls back to Resend's onboarding sender). */
 export const resendFrom = (): string | undefined => optionalString(process.env, "RESEND_FROM");
 
-/** Recipient of the morning brief (dad's email). */
+/** Recipient of the morning brief (the reader's email). */
 export const digestTo = (): string | undefined => optionalString(process.env, "DIGEST_TO");
 
 /** IANA timezone the brief's ET-date idempotency gate uses (default America/New_York). */

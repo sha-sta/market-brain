@@ -1,11 +1,11 @@
 # MarketBrain
 
-A private **stock-market research knowledge graph** (Father's Day gift for my Dad) for a casual-but-serious
-investor who researches by reading the news and forming his own view. It is **not** a stock tracker:
-it's a graph that grows organically around the names, themes, and theses he cares about, with a
-**morning email brief** ("what changed on your names + what to look out for") as the flagship.
+A private **stock-market research knowledge graph**, originally built as a Father's Day gift for my dad —
+a casual-but-serious investor who researches by reading the news and forming his own view. It is **not**
+a stock tracker: it's a graph that grows organically around the names, themes, and theses you care about,
+with a **morning email brief** ("what changed on your names + what to look out for") as the flagship.
 
-**Posture:** MarketBrain only **aggregates and surfaces** information and holds *his* notes/theses. It
+**Posture:** MarketBrain only **aggregates and surfaces** information and holds *your* notes/theses. It
 **never** recommends buy/sell as there is no advice vocabulary anywhere in the model, prompts, or UI.
 
 Ported from the `brain` knowledge-graph infra (Next.js 16 + Supabase + Vercel): the graph
@@ -13,6 +13,20 @@ Ported from the `brain` knowledge-graph infra (Next.js 16 + Supabase + Vercel): 
 auth/RLS, the force-graph viz, and the Ask/RAG module all carry over. What's domain-specific: the
 node/edge **types**, schemas, the extraction prompt, the market data adapters, the daily cron, and the
 brief.
+
+## Prior art & what's different
+
+MarketBrain is an honest **synthesis**, not a new mechanism — every ingredient has prior art, but no single shipped project bundles them. Closest neighbors: [Graphiti/Zep](https://github.com/getzep/graphiti) (temporal KG memory), [Microsoft GraphRAG](https://microsoft.github.io/graphrag/index/architecture/) (LLM-extracted graph), and [Perplexity Finance](https://www.perplexity.ai/enterprise/use-cases/finance) (finance research). Per differentiator:
+
+- **Self-updating fact-reconciling memory** — *already exists* ([Mem0](https://docs.mem0.ai/core-concepts/memory-operations/update), same Postgres+pgvector stack). Not a differentiator.
+- **Non-advisory adversarial thesis critic** — *already exists* ([open-source devilsadvocate](https://github.com/unicodeveloper/devilsadvocate); [LinqAlpha](https://aws.amazon.com/blogs/machine-learning/how-linqalpha-assesses-investment-theses-using-devils-advocate-on-amazon-bedrock/)). Cited, not claimed.
+- **Deterministic demote-only verdict floor** — the *pattern* exists ([DeepEval DAG](https://deepeval.com/docs/metrics-dag)); the asymmetric conservative twist is uncommon.
+- **Verbatim-substring evidence gate** — technique exists ([Deterministic Quoting](https://mattyyeung.github.io/deterministic-quoting)); the edge-level `assertable` packaging is the thin delta.
+- **Reference-guarded hard-delete to reclaim storage** — *partial-overlap*; the opposite of Graphiti's invalidate-only philosophy. The domain-semantic guard is the defensible bit.
+
+Why not Graphiti? It **requires a graph DB** (no Postgres driver) and **never deletes** by design — incompatible with this project's free-tier, hard-delete premise.
+
+Full citations and the skeptic's portfolio assessment in [RESEARCH.md](./RESEARCH.md).
 
 ## Architecture at a glance
 
@@ -77,7 +91,7 @@ npm install
 cp .env.example .env.local        # fill in keys as you get them (all market/AI keys are optional)
 npm run db:start                  # starts the ISOLATED local stack (project "marketbrain", ports 5532x)
 npm run db:reset                  # applies all migrations
-npm run seed                      # seeds dad's graph (themes, companies, tracked entities, examples)
+npm run seed                      # seeds an example graph (themes, companies, tracked entities, examples)
 npm run dev                       # http://localhost:3000
 ```
 
@@ -114,13 +128,13 @@ dormant (the brief falls back to template-only).
    migrations). Set Google as an auth provider (Auth → Providers) and add the prod redirect URIs in the
    Google Cloud console.
 2. **Seed**: run `npm run seed` against the cloud project (service-role key + cloud URL in env), then
-   confirm dad + you are `active` (you `is_admin`). Profiles only exist after each person signs in once,
+   confirm your users are `active` (your account `is_admin`). Profiles only exist after each person signs in once,
    so re-run the seed (or a one-line `UPDATE`) after first login.
 3. **Vercel**: import the repo, set every env var above. `vercel.json` registers the daily cron
    (`0 11 * * 1-5` UTC ≈ 7am ET pre-market, weekdays). Default Node runtime / Fluid Compute.
 4. **Email**: preferred (no domain): enable 2-Step Verification on a Gmail account, generate an App
    Password (Google Account → Security → App passwords), and set `GMAIL_USER` + `GMAIL_APP_PASSWORD`
-   (+ `DIGEST_TO` = dad's email). Delivers to any inbox. (Alternative: set `RESEND_API_KEY` +
+   (+ `DIGEST_TO` = the recipient's email). Delivers to any inbox. (Alternative: set `RESEND_API_KEY` +
    `RESEND_FROM` instead — but Resend needs a verified sending domain to reach arbitrary recipients.)
 5. **Verify before relying on the schedule**: hit the cron once manually with the secret and confirm a
    real brief lands:

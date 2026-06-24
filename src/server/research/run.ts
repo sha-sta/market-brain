@@ -98,7 +98,7 @@ export async function runResearchJob(supabase: Client, job: ResearchJobRow, deps
     findings: sources.map((s) => ({ id: s.id, title: s.title, type: s.type, snippet: s.snippet })),
   });
 
-  // 4. Promote surfaced names to tracked CANDIDATES (not active — the cost firewall; admin/dad promotes).
+  // 4. Promote surfaced names to tracked CANDIDATES (not active — the cost firewall; an admin promotes).
   let tracked = 0;
   const validIds = new Set(sources.map((s) => s.id));
   for (const nodeId of (synth.trackNodeIds ?? []).filter((id) => validIds.has(id)).slice(0, MAX_CANDIDATES)) {

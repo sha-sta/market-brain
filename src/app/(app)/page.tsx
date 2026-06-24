@@ -2,12 +2,10 @@ import Link from "next/link";
 import { getCurrentGraphId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { GraphSearch } from "@/components/graph-search";
-import { FatherDayHero } from "@/components/father-day-hero";
 import { nodeColorForType } from "@/lib/graph-style";
 
 // Home = the graph (rendered by the (app) layout on the right). The left panel is a quiet overview:
-// a Father's Day note, counts, a search box, a legend, and a hint. Auth is handled by the layout's
-// requireActive.
+// counts, a search box, a legend, and a hint. Auth is handled by the layout's requireActive.
 const TYPES = ["company", "person", "sector", "theme", "news", "filing", "thesis", "note"] as const;
 
 export default async function HomePage() {
@@ -20,8 +18,6 @@ export default async function HomePage() {
 
   return (
     <div className="flex h-full flex-col gap-6 p-6">
-      <FatherDayHero />
-
       <div>
         <h1 className="text-2xl font-medium tracking-tight">MarketBrain</h1>
         <p className="mt-1 font-mono text-xs uppercase tracking-wide tabular-nums text-muted">

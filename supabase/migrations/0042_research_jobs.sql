@@ -1,4 +1,4 @@
--- The gated, queued interactive research path. Dad submits a prompt ("dig into HBM supply risk for my
+-- The gated, queued interactive research path. The reader submits a prompt ("dig into HBM supply risk for my
 -- names"); a row is inserted (pending), an async route processes it (web search -> populate graph ->
 -- strict synthesis -> result), and the UI polls the row. A small daily quota (enforced in the action)
 -- bounds cost. The requester sees only their own jobs; the service-role processor mutates status/result.

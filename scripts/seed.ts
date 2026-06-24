@@ -1,5 +1,5 @@
 /**
- * Pre-seed dad's MarketBrain graph: theme/sector/company nodes (incl. private Anthropic + SpaceX),
+ * Pre-seed the MarketBrain graph: theme/sector/company nodes (incl. private Anthropic + SpaceX),
  * in_theme/in_sector edges, tracked_entities (the cron's work-list), a few example positions to
  * demonstrate the portfolio, and profile promotion. Run once after `supabase db push`:
  *
@@ -130,7 +130,7 @@ async function maybeEmbed(nodes: NodeSeed[]): Promise<(string | null)[]> {
 
 async function main() {
   console.log(`[seed] graph ${MAIN_GRAPH_ID}`);
-  await supabase.from("graphs").update({ name: "Dad's Market" }).eq("id", MAIN_GRAPH_ID);
+  await supabase.from("graphs").update({ name: "Market Graph" }).eq("id", MAIN_GRAPH_ID);
 
   const vectors = await maybeEmbed(allNodes);
   for (let i = 0; i < allNodes.length; i += 1) {

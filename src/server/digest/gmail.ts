@@ -5,7 +5,7 @@ import { reportError } from "@/lib/observability";
 import type { SendResult } from "./resend";
 
 // Send the brief straight from a Gmail account via SMTP + an App Password. The no-domain path: it
-// delivers to ANY recipient (e.g. dad's Gmail), free, ~500 sends/day — no DNS/domain verification.
+// delivers to ANY recipient (e.g. a personal Gmail), free, ~500 sends/day — no DNS/domain verification.
 // Requires 2-Step Verification on the account + an App Password (Google Account > Security > App
 // passwords; the normal password won't work). Adapter pattern: degrades, never throws.
 

@@ -53,7 +53,9 @@ export function ResearchBox({ initial }: { initial: ResearchJobView[] }) {
   // Keep a ref to the latest jobs so the poll interval is STABLE (a steady 2.5s heartbeat) instead of
   // being torn down + recreated on every status update.
   const jobsRef = useRef(jobs);
-  jobsRef.current = jobs;
+  useEffect(() => {
+    jobsRef.current = jobs;
+  }, [jobs]);
   const hasLive = jobs.some((j) => j.status === "pending" || j.status === "running");
   useEffect(() => {
     if (!hasLive) return;

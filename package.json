@@ -2,6 +2,12 @@
   "name": "market-brain",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
+  "author": "Christian Yoon",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sha-sta/market-brain.git"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",

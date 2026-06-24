@@ -183,7 +183,7 @@ describe("time-box: digest still sends when the judge is slow (headline)", () =>
         sent.push(o.subject);
         return { ok: true, id: "fake" };
       },
-      to: "dad@local.test",
+      to: "user@local.test",
       nowMs,
     });
     expect(digest.status).toBe("sent"); // the digest is never starved by a slow judge
