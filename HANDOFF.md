@@ -1,60 +1,55 @@
-# MarketBrain — handoff: graph lifecycle overhaul IMPLEMENTED (deploy + verify pending)
+# MarketBrain — handoff: SHIPPED + VERIFIED; next session = go public + assess uniqueness
 
-_Last updated: 2026-06-19. Durable invariants live in **`CLAUDE.md`** (read that first); the
-self-updating "living graph" is summarized in **`README.md`**. This doc is now ONLY: what shipped on the
-branch, and the operational steps left to actually deploy + verify it._
+_Last updated: 2026-06-24. Durable invariants live in **`CLAUDE.md`**; the self-updating "living graph"
+is summarized in **`README.md`**. The graph-lifecycle overhaul is **merged to `main`, deployed, and
+verified working in prod** (digest sends, UI, extractor — confirmed). `DIGEST_TO` = dad's email (live).
+**No code work remains.** This file is now the brief for the next session (and is itself an internal log —
+delete it before the repo goes public)._
 
-> The five-workstream "keep the graph lean, current, and his" overhaul + the 300s cron timeout fix is
-> **merged to `main`** (PR #3, squashed) and **deployed to prod**; migrations `0043–0045` are **pushed
-> to the cloud DB**. Tests: **144 unit · 56 integration · 6 e2e**, `npm run build` clean. What's left is
-> live verification (below) — no code work remains.
+## What shipped (on `main`, deployed; see README "Living graph")
+- **Time-box + digest reserve + news cap** — soft `deadlineMs` through `drainPending`/`judgeTheses`;
+  cron reserves ~45s for the digest (the missing-digest fix); 8-newest/company ingest cap.
+- **Tiered decay + reference-guarded hard delete** — extractor `_tier` → `decayWindow(type,tier)`;
+  `prune_archived_nodes` (SQL `0043`) deletes long-archived chronological nodes, never live-thesis
+  evidence / active-tracked. `/archived` browse+restore.
+- **Thesis lifecycle** — auto-supersede near-restatements (≥0.92) via `superseded_by`; `/theses` tab.
+- **Fact reconciliation** — extractor `corrections` (`0044 correction_queue`); ≥0.85 auto-apply.
+- **Weekly gap-fill** — grounds tracked companies via market adapters, no LLM (`0045`).
+- Tests: 144 unit · 56 integration · 6 e2e, build green. Migrations `0001–0045` pushed to cloud.
 
-## What shipped (branch `graph-lifecycle-overhaul`, oldest → newest)
-1. **Time-box + digest reserve + news cap** — a soft `deadlineMs` threads through `drainPending` +
-   `judgeTheses` (breaks between batches/theses → no orphans; judge resumes oldest-first next run); the
-   cron reserves the last ~45s for the digest, which stays last. `enqueueNews` caps at 8 newest/company.
-   **This is the missing-digest fix** (the heavy steps can no longer starve the send).
-2. **Permanence `_tier` extraction** — the extractor stamps news/catalyst/signal with
-   `ephemeral|routine|notable|landmark` (real time-scales + "keep longer when unsure"); survives schema
-   validation into `data._tier`.
-3. **Tiered decay + reference-guarded hard delete** — `decayWindow(type,tier)` + `decayStaleNodes` +
-   migration `0043 prune_archived_nodes` (deletes long-archived chronological nodes, never live-thesis
-   evidence or active-tracked nodes). `/archived` browse + restore. SQL↔TS sync-guard test.
-4. **Thesis lifecycle** — auto-supersede near-restatements (≥0.92 + shared subject) via `superseded_by`;
-   `/theses` tab (reuses the verdict panel); add-thesis piped through the existing dump pipeline.
-5. **Fact reconciliation** — extractor `corrections` array → `applyCorrections` (verbatim-verify, ≥0.85
-   auto-apply / 0.6–0.85 queue in `0044 correction_queue`; rename→`former_name`/aliases; role→delete edge).
-6. **Weekly gap-fill** — bounded, deadline-guarded grounding of tracked companies via the market adapters
-   (no LLM); migration `0045` adds `graphs.last_gap_fill_at`.
+## Next session — Task A: make the repo PUBLIC
+**Secrets audit (done 2026-06-24): CLEAN.** Only `.env.example` is tracked; `.gitignore` excludes
+`.env*`; no keys/tokens/JWTs in tracked files; no `.env` ever in git history; `.env.example` is
+placeholders only. Safe to publish from a secrets standpoint.
 
-**Verified by tests/build; NOT yet verified live:** the 300s wall-clock (can't unit-test — see step 3
-below), the authenticated UI in a browser, and whether the LIVE extractor sets `_tier` sensibly / emits
-`corrections` only when warranted (the wiring + gating are stub-tested end-to-end; the model's judgement
-is manual-verify).
+**Non-secret but personal/identifying — decide what to genericize vs keep (it's a gift, so keeping the
+story is legitimate):**
+- Personal framing: `README.md:3`, `CLAUDE.md:3` ("Father's Day gift for my Dad").
+- User-facing "Appa" strings: `src/components/father-day-hero.tsx:42` ("Happy Father's Day, Appa."),
+  `src/app/(app)/admin/page.tsx:36`. Plus the `FatherDayHero` component + its wiring in `app/(app)/page.tsx`.
+- Infra identifiers (not secret, but reveal the deployment): Supabase ref `nrzyfqhfbseihxzwcvns`, prod
+  URL `dj-stocks.vercel.app`, repo slug `github.com/sha-sta/market-brain` — `CLAUDE.md:10-18`.
+- **Delete this `HANDOFF.md`** (internal log) before going public.
+- Consider the `ecc:opensource-pipeline` skill (forker → sanitizer → packager) to automate sanitize +
+  generate LICENSE / CONTRIBUTING / setup.
 
-## Verify live (no code work remains)
-- ~~Merge to `main` + deploy~~ — **done** (PR #3, auto-deployed).
-- ~~`supabase db push` of `0043`/`0044`/`0045`~~ — **done** (cloud has the schema).
-1. **Fire the cron to confirm the timeout fix** (can't be unit-tested). `DIGEST_TO` is still your OWN
-   email — safe to test today. Grab `CRON_SECRET` from the Vercel dashboard (`vercel env pull` returns
-   empty for this project):
-   ```
-   curl -sS -m 310 -w '\n— HTTP %{http_code} in %{time_total}s\n' \
-     -H "Authorization: Bearer <CRON_SECRET>" https://dj-stocks.vercel.app/api/cron/daily
-   ```
-   Expect HTTP 200 well under 300s with `results[].digest.status:"sent"` (a 504 near ~300s = still timing
-   out).
-2. **Eyeball the new UI** (auth-gated, manual-verify per project posture): `/theses` (add a thesis, see it
-   become a node + get judged next run) and `/archived` (restore one). To view without a session,
-   temporarily add the path to `PUBLIC_PATHS` in `src/lib/supabase/proxy.ts` (revert after).
-3. **Spot-check the live extractor** on one real dump: a `_tier` set on news, and a `corrections` entry
-   only when the text actually states a fact changed.
+## Next session — Task B: deep research — what was UNIQUELY done?
+Goal: figure out, honestly, what's genuinely novel vs careful-application-of-known-patterns, and position
+the README/announcement against real prior art. Candidate differentiators to verify, and the closest
+prior art to compare against:
+- **No-advice + adversarial thesis critic** (deterministic `enforceFloor` anti-sycophancy) in a *market*
+  tool — most AI-investing tools GIVE buy/sell calls. Verify against FinChat/Fintool, AlphaSense,
+  Perplexity Finance, BloombergGPT, the "AI stock picker" SaaS crowd.
+- **Temporal/living KG** — tiered decay + reference-guarded hard-delete + thesis-supersede + fact
+  reconciliation. **Closest neighbor: Zep/Graphiti (temporal KG with edge invalidation)** and Microsoft
+  **GraphRAG**, LlamaIndex KG, Cognee, txtai. Compare honestly — Graphiti overlaps the most.
+- **Evidence-gated assertable edges** (verbatim-quote verification before a claim is assertable) +
+  **build-failing sync invariants** (triple-sourced assertable; double-sourced decay windows) — an
+  anti-hallucination + correctness-discipline angle.
+- **Fact reconciliation that rides the extraction envelope at ZERO extra LLM cost**, and **lifecycle
+  tuned for a free-tier embedded-vector DB** — cost-engineering angle.
+Deliverable: a short "what's novel / what exists already / who this is for" section, with citations.
 
-## Open setup still pending (operational, unrelated to the build)
-1. **Let dad ("Appa") in:** publish the Google OAuth consent screen (or add him as a test user), then
-   approve him at `/admin` when he signs in.
-2. **Seed the graph so he doesn't start empty:** the "paste into Claude.ai" seed prompt that produces a
-   `seed.md` (dumped at `/dump`) is preserved in git — `HANDOFF.md` @ commit `1c8bf38`, "Seed the graph"
-   appendix. Test in a separate graph (top-left graph selector), then wipe.
-3. **Father's Day = Sun Jun 21, 2026.** The cron is weekday-only, so it won't auto-send Sunday — send
-   manually that morning after setting `DIGEST_TO` = his email. Keep `DIGEST_TO` = your own until then.
+## Pending setup (likely already done — confirm)
+- Appa approved at `/admin`; graph seeded (seed prompt: git `1c8bf38`). The user reports it works, so
+  these are probably complete.
