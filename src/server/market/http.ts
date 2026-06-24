@@ -3,8 +3,7 @@ import { reportError } from "@/lib/observability";
 
 // Shared HTTP helper for every market adapter: AbortController timeout, reportError on a real failure,
 // and degrade to null on ANY error or non-2xx. A market-data outage must NEVER crash the cron — a
-// thin/empty result just means a quieter brief, never a fabricated number. Mirrors brain's
-// openalex-client fetchJson.
+// thin/empty result just means a quieter brief, never a fabricated number.
 
 export async function getJson(
   url: string,

@@ -3,10 +3,7 @@
 -- DB invariant: node PK becomes composite (graph_id, id), so the same slug (e.g. "nvda") can exist
 -- independently in two graphs and dedupe/wikilinks never cross a graph boundary.
 --
--- (Adapted from brain's 0023 for MarketBrain: the outreach `usable_for_outreach` index and the
--- author-position columns/params — brain migrations 0020/0022, which MarketBrain does not include —
--- are removed. upsert_edge is graph-scoped here but keeps the 8-arg integrity signature from 0017,
--- with no author_position/is_corresponding.)
+-- (upsert_edge is graph-scoped here but keeps the 8-arg integrity signature from 0017.)
 
 -- ============================================================================================
 -- 1. graphs table. Shared partitions: any active user sees/creates/renames any graph.
@@ -146,7 +143,7 @@ $$;
 grant execute on function public.match_nodes(vector(1536), uuid, float, int, text) to authenticated, service_role;
 
 -- upsert_edge: prepend p_graph_id, insert it, scope the conflict target to the per-graph unique key.
--- (8-arg integrity signature from 0017 — no author_position/is_corresponding in MarketBrain.)
+-- (8-arg integrity signature from 0017.)
 drop function if exists public.upsert_edge(text, text, text, text, text, real, text, uuid);
 create or replace function public.upsert_edge(
   p_graph_id uuid,

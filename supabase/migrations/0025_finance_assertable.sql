@@ -1,7 +1,6 @@
 -- Re-point edges.assertable at the MarketBrain STRONG relation vocab. The generated column lists a
 -- hardcoded literal set; it MUST stay in sync with STRONG_RELATIONS in
--- src/server/normalize/relations.ts, or no edge is ever assertable. Same drop+recreate pattern as
--- brain 0016 (research vocab), which this supersedes. edges is empty on a fresh DB, so the legacy
+-- src/server/normalize/relations.ts, or no edge is ever assertable. edges is empty on a fresh DB, so the legacy
 -- backfill below is a no-op — kept for parity / re-runs against pre-existing rows.
 
 -- The partial index `edges_assertable_idx` references the column, so drop it before the column.

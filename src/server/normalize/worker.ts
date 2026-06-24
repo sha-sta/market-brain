@@ -51,7 +51,7 @@ export interface EntityEnrichSummary {
 /** Ground a `company` node's identity (ticker/cik/sector/exchange) in real market data (FMP/Finnhub)
  *  when the LLM left those blank — grounding identity in data, not the model. Optional on WorkerDeps
  *  (every stub-based worker test keeps compiling with just { extract, embed }). graphId scopes the
- *  lookup. Mirrors how brain's enrichAuthors grounded paper authorship in OpenAlex. */
+ *  lookup. */
 export type EntityEnricher = (
   nodeId: string,
   graphId: string,
@@ -299,8 +299,8 @@ export async function processRawUpload(
     }
 
     // Ground each company's identity (ticker/cik/sector) in real market data when the LLM left it
-    // blank — identity comes from FMP/Finnhub, not the model (the anti-fabrication grounding step,
-    // mirroring how brain grounded authorship in OpenAlex). Per-entity failure isolation: one lookup
+    // blank — identity comes from FMP/Finnhub, not the model (the anti-fabrication grounding step).
+    // Per-entity failure isolation: one lookup
     // throwing must not fail the doc. Private companies are skipped inside the enricher (no quote API).
     if (deps.enrichEntities) {
       for (const { record, id: nid } of resolved) {

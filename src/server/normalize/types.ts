@@ -20,7 +20,7 @@ export const NODE_TYPES = [
   "commodity", // a raw material / critical input (lithium, HBM, neon gas) — surfaces hidden dependencies
   "organization", // a non-company actor (Fed, SEC, FDA, OPEC) that acts on the market
   "signal", // a dated, observed indicator that supersedes a prior reading
-  "note", // a free-text dump, identical to brain's worker-only note
+  "note", // a free-text dump (the worker-only note type)
 ] as const;
 
 export type NodeType = (typeof NODE_TYPES)[number];

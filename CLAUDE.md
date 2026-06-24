@@ -18,8 +18,8 @@ and it produces strict, non-sycophantic theses.
 - Cloud project ref **`<supabase-ref>`**; migrations **`0001–0045` are pushed** (`0043–0045` =
   `prune_archived_nodes` hard-delete, `correction_queue`, `graphs.last_gap_fill_at`). Christian is
   active+admin. Google OAuth lives in the Supabase dashboard (NOT Vercel env).
-- **Local stacks are isolated from the sibling `brain` project**: `project_id "marketbrain"`, ports
-  **5532x** main / **5533x** test. Never touch `brain`'s instance. `npm run db:start` / `db:test:start`.
+- **Local stacks use a dedicated, isolated project**: `project_id "marketbrain"`, ports
+  **5532x** main / **5533x** test. Don't point at any other local Supabase instance. `npm run db:start` / `db:test:start`.
 - **`npm run db:types` runs from `/tmp` on purpose** (Supabase CLI 2.106 chokes on `config.toml`'s
   `env(...)`). Don't "simplify" it back.
 

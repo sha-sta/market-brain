@@ -1,6 +1,6 @@
 // The market-data contract. Every adapter maps its provider's payload into these neutral shapes, and
 // the daily cron + enricher depend only on `MarketDeps` — so a provider can be swapped or stubbed
-// (tests inject a fake MarketDeps, exactly like brain stubbed OpenAlex). Numeric fields are nullable:
+// (tests inject a fake MarketDeps). Numeric fields are nullable:
 // a missing value degrades to null, never a fabricated number.
 
 export interface Quote {

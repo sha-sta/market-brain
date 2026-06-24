@@ -48,7 +48,7 @@ button:disabled {
   cursor: not-allowed;
 }
 
-/* Indeterminate progress bar (LLM work with no real percentage: dump normalize, outreach draft/send). */
+/* Indeterminate progress bar (LLM work with no real percentage: dump normalize, research run). */
 @keyframes indeterminate {
   0% {
     transform: translateX(-100%);

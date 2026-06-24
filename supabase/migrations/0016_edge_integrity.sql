@@ -1,4 +1,4 @@
--- Edge integrity v1: make relationships auditable so generated outreach can't credit someone for
+-- Edge integrity v1: make relationships auditable so a generated claim can't credit someone for
 -- work they didn't do. An edge may ground a FACTUAL claim only if it (a) is a STRONG relation type,
 -- (b) clears a confidence bar, and (c) carries a verbatim evidence_quote from a source upload.
 -- Everything else is association (weak) and is navigation/provenance only — never asserted.
@@ -21,7 +21,7 @@ alter table public.edges
 
 -- Conservative legacy backfill: existing edges get a mapped relation_type from their raw `type`
 -- label, but NO evidence_quote -> assertable=false. The pre-existing graph therefore cannot ground
--- outreach claims until those docs are re-dumped through the grounded extractor. Safe by default.
+-- factual claims until those docs are re-dumped through the grounded extractor. Safe by default.
 update public.edges set
   method = 'legacy',
   relation_type = case

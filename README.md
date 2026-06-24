@@ -8,9 +8,9 @@ with a **morning email brief** ("what changed on your names + what to look out f
 **Posture:** MarketBrain only **aggregates and surfaces** information and holds *your* notes/theses. It
 **never** recommends buy/sell as there is no advice vocabulary anywhere in the model, prompts, or UI.
 
-Ported from the `brain` knowledge-graph infra (Next.js 16 + Supabase + Vercel): the graph
+Built on Next.js 16 + Supabase + Vercel. The generic knowledge-graph core
 (nodes/edges/pgvector/dedupe/embed/worker), the upload→normalize pipeline, the cron/drain queue,
-auth/RLS, the force-graph viz, and the Ask/RAG module all carry over. What's domain-specific: the
+auth/RLS, the force-graph viz, and the Ask/RAG module are domain-agnostic. What's market-specific: the
 node/edge **types**, schemas, the extraction prompt, the market data adapters, the daily cron, and the
 brief.
 

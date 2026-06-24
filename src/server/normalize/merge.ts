@@ -8,8 +8,8 @@
 import type { NodeRecord, NoteData } from "./types";
 import { decideSupersede } from "./lifecycle";
 
-// Append-only logs are owned by the outreach pipeline, not the normalizer — never merged here.
-const SKIP_FIELDS = new Set(["messages", "outreach_log"]);
+// Fields that should never be fill-merged here (none currently).
+const SKIP_FIELDS = new Set<string>();
 
 /** Empty = nothing worth keeping. Falsy scalars (''/0/false) are fillable, per Python truthiness. */
 function isEmpty(v: unknown): boolean {

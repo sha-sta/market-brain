@@ -8,8 +8,7 @@ import { reportError } from "@/lib/observability";
 import type { MarketDeps } from "./types";
 
 // Ground a company node's identity in real market data (FMP/Finnhub profile) — fill cik/exchange/
-// website that the LLM left blank, so identity comes from DATA, not the model. This is the finance
-// analogue of brain's enrichAuthors (which grounded authorship in OpenAlex). Idempotent via a
+// website that the LLM left blank, so identity comes from DATA, not the model. Idempotent via a
 // `market_provenance` marker; never throws (per-entity failure must not fail the doc); private
 // companies are skipped (no quote/profile API). NEVER overwrites a verbatim value the LLM provided,
 // and NEVER writes a raw sector label into the `sector` [[wikilink]] field.
