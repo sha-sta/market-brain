@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
 import { rankItems } from "@/server/market/rank";
+import { lastMarketCloseMs } from "@/server/market/market-hours";
 import type { BriefData, Connection, FilingItem, Mover, NewsItem, ThesisCheck } from "./compose";
 
 // Gather the graph's deltas since the last brief into the pure BriefData composeBrief consumes. All
@@ -27,9 +28,10 @@ export async function gatherBrief(
   graphId: string,
   opts: { date: string; sinceIso: string; nowMs: number },
 ): Promise<BriefData> {
+  const closeMs = lastMarketCloseMs(opts.nowMs);
   const [movers, news, filings, alerts, connections, thesisChecks] = await Promise.all([
     gatherMovers(supabase, graphId),
-    gatherNews(supabase, graphId, opts.sinceIso, opts.nowMs),
+    gatherNews(supabase, graphId, opts.sinceIso, opts.nowMs, closeMs),
     gatherFilings(supabase, graphId, opts.sinceIso),
     gatherAlerts(supabase, graphId, opts.sinceIso),
     gatherConnections(supabase, graphId),
@@ -68,8 +70,10 @@ async function gatherMovers(supabase: Client, graphId: string): Promise<Mover[]>
   return movers.slice(0, MAX_MOVERS);
 }
 
-/** New news nodes since the last brief, ranked, with the holdings each names (mentions edges). */
-async function gatherNews(supabase: Client, graphId: string, sinceIso: string, nowMs: number): Promise<NewsItem[]> {
+/** News published since the previous market close (4:30pm ET), ranked, with the holdings each names
+ *  (mentions edges). The reader watched the trading day live, so the morning brief is the after-hours
+ *  + overnight delta, not intraday news already seen. */
+async function gatherNews(supabase: Client, graphId: string, sinceIso: string, nowMs: number, closeMs: number): Promise<NewsItem[]> {
   const { data: rows } = await supabase
     .from("nodes")
     .select("id, title, data, created_at")
@@ -81,8 +85,18 @@ async function gatherNews(supabase: Client, graphId: string, sinceIso: string, n
     .limit(60);
   if (!rows || rows.length === 0) return [];
 
+  // Keep only what published at/after the previous close. Fall back to ingest time when a source
+  // omits published_at (a just-ingested item is, by construction, after the last close).
+  const fresh = rows.filter((r) => {
+    const d = (r.data ?? {}) as Record<string, unknown>;
+    const pub = typeof d.published_at === "string" ? Date.parse(d.published_at) : NaN;
+    const eff = Number.isFinite(pub) ? pub : Date.parse(r.created_at);
+    return Number.isFinite(eff) && eff >= closeMs;
+  });
+  if (fresh.length === 0) return [];
+
   const ranked = rankItems(
-    rows.map((r) => {
+    fresh.map((r) => {
       const d = (r.data ?? {}) as Record<string, unknown>;
       return { id: r.id, title: r.title, data: d, publishedAt: typeof d.published_at === "string" ? d.published_at : r.created_at, materiality: typeof d.materiality === "string" ? d.materiality : null };
     }),

@@ -43,7 +43,7 @@ For how MarketBrain compares to similar tools (Graphiti, GraphRAG, Perplexity Fi
   thesis-judge, thesis-supersede) → compose + send the brief. The LLM-heavy steps are **time-boxed**
   against a soft deadline that reserves the tail of the 300s budget for the send, so the email never
   gets starved.
-- **Brief** (`src/server/digest/*`): graph deltas (movers, ranked news, filings, alerts, thesis checks,
+- **Brief** (`src/server/digest/*`): graph deltas (movers, ranked news published since the prior market close (4:30pm ET, so the 7am brief is the after-hours + overnight delta), filings, alerts, thesis checks,
   and the cross-holding connection-surfacing trick) → a pure `composeBrief` (LLM intro injected;
   template-only fallback) → Gmail SMTP (preferred) or Resend → archived in `digest_log` (which also
   powers the in-app `/brief`).

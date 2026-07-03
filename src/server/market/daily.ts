@@ -13,6 +13,7 @@ import { CONFIDENCE_WEAK } from "@/server/normalize/relations";
 import { canonicalizeUrl, normTicker } from "@/server/normalize/dedupe";
 import { reportError } from "@/lib/observability";
 import { pLimit } from "./p-limit";
+import { lastMarketCloseMs } from "./market-hours";
 import type { MarketDeps } from "./types";
 
 // The daily flagship, per graph: load the tracked entities, snapshot public prices, fetch company
@@ -131,7 +132,9 @@ async function enqueueNews(
   companies: CompanyRow[],
   deps: DailyDeps,
 ): Promise<{ enqueued: number; skipped: number }> {
-  const from = ymd(deps.nowMs - 86_400_000); // yesterday
+  // Fetch back to the previous market close so a Monday run still catches Friday's after-hours +
+  // weekend news; the "after 4:30pm ET" publish-time cut is applied when the brief is gathered.
+  const from = ymd(lastMarketCloseMs(deps.nowMs));
   const to = ymd(deps.nowMs);
   const limit = pLimit(2);
   const seenThisRun = new Set<string>();
