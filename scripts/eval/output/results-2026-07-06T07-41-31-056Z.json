@@ -1,0 +1,15 @@
+{
+  "runId": "2026-07-06T07-41-31-056Z",
+  "strong": 189,
+  "ungroundedStrong": 22,
+  "catchRate": 0.1164021164021164,
+  "assertedOn": 167,
+  "assertedOff": 189,
+  "dbAssertable": 145,
+  "dbDowngraded": 19,
+  "blockedNatural": 13,
+  "ambiguousSuppressed": 23,
+  "synthBlocked": 5,
+  "synthMerged": 1,
+  "synthFailures": []
+}

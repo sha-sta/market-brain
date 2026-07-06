@@ -25,7 +25,11 @@
     "db:test:start": "supabase start --workdir supabase-test",
     "db:test:stop": "supabase stop --workdir supabase-test",
     "db:test:reset": "supabase db reset --workdir supabase-test",
-    "seed": "tsx scripts/seed.ts"
+    "seed": "tsx scripts/seed.ts",
+    "eval:fetch-corpus": "tsx scripts/eval/fetch-corpus.ts",
+    "eval:grounding": "vitest run --config vitest.eval.config.ts scripts/eval/grounding.eval.ts",
+    "eval:precision": "vitest run --config vitest.eval.config.ts scripts/eval/precision.eval.ts",
+    "eval:score": "tsx scripts/eval/score.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",

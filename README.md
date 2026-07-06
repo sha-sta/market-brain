@@ -79,6 +79,41 @@ only when the embedded text actually changed.
   (cik / exchange / website) on tracked companies via the market adapters (no LLM), which adds the durable
   facts the graph is *missing* rather than piling on more news.
 
+## Anti-hallucination guards + grounding eval
+
+The graph's correctness rests on **deterministic guards between the LLM and the graph**: the model proposes,
+but code decides what becomes an asserted fact. Four guards, all mapped to code in
+[docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md):
+
+- **Verbatim-evidence gate** — a strong relation becomes `assertable` only if its `evidence` quote is an
+  exact (NFC-normalized) substring of the source; an unverified strong claim is *downgraded*, never minted
+  (`verifyEvidence` / `resolveGroundedEdge`, `src/server/normalize/relations.ts`).
+- **Hard-key entity resolution** — ticker/CIK/URL/accession conflicts block a merge however similar the
+  names (the fabricated-ticker guard, `src/server/normalize/dedupe.ts`).
+- **Confidence-tiered reconciliation** — a fact correction auto-applies only when verbatim-verified **and**
+  ≥ 0.85 confidence; 0.6–0.85 queues for review (`src/server/normalize/reconcile.ts`).
+- **Cross-layer, build-failing invariants** — the `assertable` vocabulary is kept byte-identical across a SQL
+  generated column, a TS constant, and a runtime check, and the decay windows across SQL and TS, with unit
+  tests that parse the raw migrations and fail the build on any drift.
+
+### Measured (grounding eval)
+
+`scripts/eval/` runs the **real** extractor over a **pinned corpus** of real SEC filings against the isolated
+test DB and scores the guards deterministically ([how it works](./scripts/eval/README.md)). Latest run
+(40 filings, iXBRL stripped to prose; 189 strong relations proposed):
+
+| Guard | Metric | Result |
+|---|---|---|
+| Verbatim-evidence gate | strong claims caught as ungrounded → downgraded | **22 / 189 = 11.6%** |
+| Evidence gate ablation | asserted-but-ungrounded facts prevented (gate ON vs OFF) | **+22** |
+| Hard-key dedup | fabricated-key merges blocked (natural corpus / synthetic adversarial) | **13 / 5-of-5** |
+| Grounding precision | asserted facts whose quote *supports* the claim (LLM-judged + hand-reviewed) | **28 / 50 = 56%** |
+
+The gate guarantees a quote is **verbatim**; precision measures the gap it doesn't cover (an asserted fact can
+be verbatim-grounded yet wrong-direction or wrong-endpoint). Numbers are from one pinned run and reproduce via
+`npm run eval:score`; see [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md#the-grounding-eval) for methodology and
+honest caveats.
+
 ## Local development
 
 Prereqs: Node 20+, Docker (for local Supabase), the Supabase CLI (bundled as a dev dep).
@@ -97,7 +132,9 @@ npm run dev                       # http://localhost:3000
 > or client at another project's instance.
 
 Useful scripts: `npm test` (unit), `npm run test:integration` (needs `npm run db:test:start` first),
-`npm run e2e`, `npm run typecheck`, `npm run db:types` (regenerate `src/lib/database.types.ts`).
+`npm run e2e`, `npm run typecheck`, `npm run db:types` (regenerate `src/lib/database.types.ts`), and the
+grounding eval `npm run eval:fetch-corpus` / `eval:grounding` / `eval:precision` / `eval:score`
+(see [Anti-hallucination guards](#anti-hallucination-guards--grounding-eval)).
 
 ## Environment variables
 
@@ -139,11 +176,11 @@ dormant (the brief falls back to template-only).
    curl -H "Authorization: Bearer $CRON_SECRET" https://<your-app>/api/cron/daily
    ```
 
-- **Unit** (`tests/unit/`, ~144): schemas, dedupe (ticker hard-key + conflict, URL canonicalization),
+- **Unit** (`tests/unit/`, 148): schemas, dedupe (ticker hard-key + conflict, URL canonicalization),
   relations (evidence/assertable), critic calibration, rank, compose (section selection/empty-state),
   tags, prompt guardrails, **tiered-decay windows + the SQL↔TS sync-guard**, the **time-box deadline**,
   **thesis-supersede rules**, **fact-reconciliation gating**, and the **gap-fill throttle**. Pure, fast.
-- **Integration** (`tests/integration/`, ~56): against the isolated test Supabase with stubbed
+- **Integration** (`tests/integration/`, 57): against the isolated test Supabase with stubbed
   market/extractor/embedder/judge: the daily cron, **tiered decay + reference-guarded hard delete**
   (incl. every protection guard), **thesis supersede + the judge ignoring superseded theses**, **fact
   reconciliation** (apply/queue/drop, rename, edge-expiry), **gap-fill**, and the headline guarantee

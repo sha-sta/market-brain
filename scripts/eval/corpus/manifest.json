@@ -1,0 +1,303 @@
+{
+  "generatedAt": "2026-07-06T07:20:07.545Z",
+  "window": {
+    "from": "2026-06-06",
+    "to": "2026-07-06"
+  },
+  "basket": [
+    "NVDA",
+    "AAPL",
+    "MSFT",
+    "TSLA",
+    "AMZN",
+    "META",
+    "GOOGL",
+    "JPM",
+    "XOM",
+    "AMD"
+  ],
+  "newsPerTicker": 3,
+  "docCount": 40,
+  "docs": [
+    {
+      "id": "filing-nvda-8k-01",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000060/nvda-20260628.htm",
+      "ticker": "NVDA",
+      "sha256": "81599b567fc2a2ac3e4589705e16e375d5933f55145985f1d9cc0e73fbe250db"
+    },
+    {
+      "id": "filing-nvda-8k-02",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000056/nvda-20260624.htm",
+      "ticker": "NVDA",
+      "sha256": "2a1bc9e4d1c667c8594b7120c3ffc39cb9540fda5e22b592c0a6fe772bc7bce8"
+    },
+    {
+      "id": "filing-nvda-8k-03",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/1045810/000119312526275783/d48176d8k.htm",
+      "ticker": "NVDA",
+      "sha256": "c3ffcd38082a7f825cd0f34e1ac5a5e324cefbdf885e7657ec93fe8b19e4bf4a"
+    },
+    {
+      "id": "filing-nvda-10q-04",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000052/nvda-20260426.htm",
+      "ticker": "NVDA",
+      "sha256": "bab096fdca6ffcb218fe48b19627e56926910ca859c1e36afbbc467d410a2d47"
+    },
+    {
+      "id": "filing-aapl-10q-01",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/320193/000032019326000013/aapl-20260328.htm",
+      "ticker": "AAPL",
+      "sha256": "6ecb83755fb56249a04e4f071896a0f4a24e6e1e4710b1f069b64299957f107f"
+    },
+    {
+      "id": "filing-aapl-8k-02",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/320193/000032019326000011/aapl-20260430.htm",
+      "ticker": "AAPL",
+      "sha256": "a4bce874a5722ae96fb5eadbac4547be1721a1c73b343c5911230bd2d3d66b54"
+    },
+    {
+      "id": "filing-aapl-8k-03",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/320193/000114036126015711/ef20071035_8k.htm",
+      "ticker": "AAPL",
+      "sha256": "514d8e42e5b1da22e134145bd5a73b6e89be954c283e56edeea9fe677f047462"
+    },
+    {
+      "id": "filing-aapl-8k-04",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/320193/000114036126006577/ef20060722_8k.htm",
+      "ticker": "AAPL",
+      "sha256": "88ac4b3ea52c486842986f1b08390b1d4b2e17f0b27032c9b9e2ea0ce592ad93"
+    },
+    {
+      "id": "filing-msft-8k-01",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/789019/000119312526258667/d26760d8k.htm",
+      "ticker": "MSFT",
+      "sha256": "268414cae6c352caf75b8e1ae9d74b943ec62db8bff05e52ab54f0f954c0efbe"
+    },
+    {
+      "id": "filing-msft-8k-02",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/789019/000119312526224155/d125909d8k.htm",
+      "ticker": "MSFT",
+      "sha256": "315e1ca8b62ab6138fd14d01872a9db4d99c135d3cd076c0df3055865e713a3d"
+    },
+    {
+      "id": "filing-msft-10q-03",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/789019/000119312526191507/msft-20260331.htm",
+      "ticker": "MSFT",
+      "sha256": "aba7cc949ad10ceda53eff557c503f2b21f8d80c628e8d95384f461aec4663e6"
+    },
+    {
+      "id": "filing-msft-8k-04",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/789019/000119312526191457/msft-20260429.htm",
+      "ticker": "MSFT",
+      "sha256": "c3cbf7a129258eeed03d37d07ba8f5673a4d61bb33168b332369e3879cd980ad"
+    },
+    {
+      "id": "filing-tsla-8k-01",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/1318605/000162828026046717/tsla-20260702.htm",
+      "ticker": "TSLA",
+      "sha256": "232e532cd9ffd560f67d8c23db62bdf08f0a15c6b70929e0fee5801630378497"
+    },
+    {
+      "id": "filing-tsla-10q-02",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/1318605/000162828026026673/tsla-20260331.htm",
+      "ticker": "TSLA",
+      "sha256": "aaa4f673d4e12d3afe05d7a912b93bbc8582fda234f62eec08242cad61bda2fd"
+    },
+    {
+      "id": "filing-tsla-8k-03",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/1318605/000162828026026551/tsla-20260422.htm",
+      "ticker": "TSLA",
+      "sha256": "7b5f0e7fa815402969569f8677605e077cd5fb012b617b8dc2e45facad550dc3"
+    },
+    {
+      "id": "filing-tsla-8k-04",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/1318605/000162828026022956/tsla-20260402.htm",
+      "ticker": "TSLA",
+      "sha256": "6ef6846266c7a61f0d9dea613315a1fd302278ce98f5e5184cab4e8404835f49"
+    },
+    {
+      "id": "filing-amzn-8k-01",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/1018724/000110465926073562/tm2613616d5_8k.htm",
+      "ticker": "AMZN",
+      "sha256": "159a043365bfc44b3352ca1dc19c7a462e48d087c9a297fa1f9df5eb5e362bc1"
+    },
+    {
+      "id": "filing-amzn-8k-02",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/1018724/000110465926072140/tm2613616d4_8k.htm",
+      "ticker": "AMZN",
+      "sha256": "72c6060ca81630c312ef895d324f786622e710f6d83c13022068a32379607f88"
+    },
+    {
+      "id": "filing-amzn-8k-03",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/1018724/000110465926065717/tm2614288d1_8k.htm",
+      "ticker": "AMZN",
+      "sha256": "aff61dc3ca053fcabf306f7264c32b32f128fa62f376c5a57054d347bbce0cea"
+    },
+    {
+      "id": "filing-amzn-10q-04",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/1018724/000101872426000014/amzn-20260331.htm",
+      "ticker": "AMZN",
+      "sha256": "473e2f4b2db3e9819a55c005c5e84a58136c05abb435c1779f05f2a258da84b3"
+    },
+    {
+      "id": "filing-meta-8k-01",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/1326801/000162828026039193/meta-20260527.htm",
+      "ticker": "META",
+      "sha256": "514c3c15a139bbd3939d3c51fe9fcaefd4f92fd4cd2c1154a4596c834d04c4f2"
+    },
+    {
+      "id": "filing-meta-8k-02",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/1326801/000119312526204128/d134616d8k.htm",
+      "ticker": "META",
+      "sha256": "fb4e584dbbfee8085f7b2da79b5c7d5f8cf9a72001cab034c1e6306e20302fcb"
+    },
+    {
+      "id": "filing-meta-10q-03",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/1326801/000162828026028526/meta-20260331.htm",
+      "ticker": "META",
+      "sha256": "8173f5d518e3ab94d88c4816dd5ae7a8f729d7fc003892963ce2b9f52ae51b00"
+    },
+    {
+      "id": "filing-meta-8k-04",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/1326801/000162828026028364/meta-20260429.htm",
+      "ticker": "META",
+      "sha256": "ec498d40d4e227a809d455d607430935ebbc463484fc944e2e79daca2dd105f8"
+    },
+    {
+      "id": "filing-googl-8k-01",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/1652044/000119312526267578/d57679d8k.htm",
+      "ticker": "GOOGL",
+      "sha256": "4d1834589e5c90eb83af2045bdf9f5aef294158151ae9d5bc886256dd9b39d93"
+    },
+    {
+      "id": "filing-googl-8k-02",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/1652044/000119312526259830/d36818d8k.htm",
+      "ticker": "GOOGL",
+      "sha256": "f660d4ea2f34e61b13a99bbad83dea6bf58827ad9b2161736c964e7ce85682e6"
+    },
+    {
+      "id": "filing-googl-8k-03",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/1652044/000165204426000059/goog-20260602.htm",
+      "ticker": "GOOGL",
+      "sha256": "8aaf4ecef0b0916a2adc9d482e66d2e68d886fdc27109027c2e0c83b0fe5cafa"
+    },
+    {
+      "id": "filing-googl-8k-04",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/1652044/000119312526257724/d83560d8k.htm",
+      "ticker": "GOOGL",
+      "sha256": "3313fec79641e48ffdb37554b42af75fec9aedd55cfeac3911285fadcfb1a899"
+    },
+    {
+      "id": "filing-jpm-8k-01",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/19617/000001961726000241/jpm-20260624.htm",
+      "ticker": "JPM",
+      "sha256": "f357e5f55e108d63736d5177f6b8ec1a10c4a4bf912cc0cd1e2a2620991a3e14"
+    },
+    {
+      "id": "filing-jpm-8k-02",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/19617/000162828026045169/jpm-20260624.htm",
+      "ticker": "JPM",
+      "sha256": "fd702d463a6bd09167aec9f6985d290406db65e057ca9f696e29e2f390f05844"
+    },
+    {
+      "id": "filing-jpm-8k-03",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/19617/000162828026045167/jpm-20260624.htm",
+      "ticker": "JPM",
+      "sha256": "9a538a39ed5d93206de7742ada8a17ade1f6e29346b40cb9a5768d8f5004069f"
+    },
+    {
+      "id": "filing-jpm-8k-04",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/19617/000119312526253533/d113536d8k.htm",
+      "ticker": "JPM",
+      "sha256": "3e73e79c033debeacf638c8ea4d5424d807beab875ee7aa578c4fa73cd52e558"
+    },
+    {
+      "id": "filing-xom-8k-01",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/34088/000119312526291986/d70995d8k.htm",
+      "ticker": "XOM",
+      "sha256": "0a940cb6153bfd8d9e9e6d310ebc0e598d51a5fa88acc8dd29913b0b2f228a87"
+    },
+    {
+      "id": "filing-xom-8k-02",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/34088/000003408826000078/xom-20260527.htm",
+      "ticker": "XOM",
+      "sha256": "6a1dab68bb84255e93be101e3221715fa0ae87b7e46b668a1528de1ab8714691"
+    },
+    {
+      "id": "filing-xom-8k-03",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/34088/000003408826000069/xom-20260428.htm",
+      "ticker": "XOM",
+      "sha256": "db827afcf99d7fff2f733abe57dcb979e8fe11f76eac1af2243386d7bf83c7d8"
+    },
+    {
+      "id": "filing-xom-10q-04",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/34088/000003408826000067/xom-20260331.htm",
+      "ticker": "XOM",
+      "sha256": "5a257ce859c81b03b081a54be94584f5dc189c7084f911e40c4956361ed8e6bf"
+    },
+    {
+      "id": "filing-amd-8k-01",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/2488/000000248826000115/amd-20260626.htm",
+      "ticker": "AMD",
+      "sha256": "3a80784d01290b581b9f0d63ae1a04a10e14ef122c4d048368700d7e7a745659"
+    },
+    {
+      "id": "filing-amd-8k-02",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/2488/000119312526226746/d118163d8k.htm",
+      "ticker": "AMD",
+      "sha256": "f3070ea3eeb17548b73ff1e3af1934ce5bd015c9133cc61a442bfdd5b7aa5477"
+    },
+    {
+      "id": "filing-amd-10q-03",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/2488/000000248826000076/amd-20260328.htm",
+      "ticker": "AMD",
+      "sha256": "a4b1eb726fe9184d2fcfc35cad1de2b9bcd25b314d5b09e56bb84ffa21ffa2c5"
+    },
+    {
+      "id": "filing-amd-8k-04",
+      "kind": "filing",
+      "source_ref": "https://www.sec.gov/Archives/edgar/data/2488/000000248826000072/amd-20260505.htm",
+      "ticker": "AMD",
+      "sha256": "327b7365742e8edc418ef8a00da328da8754b0580bafada82da98b549587bbd4"
+    }
+  ]
+}
